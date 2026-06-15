@@ -29,9 +29,14 @@
       "C4C_ODATA": {
         "kind": "odata-v2",
         "model": "srv/external/C4C_ODATA",
-        "credentials": {
-          "destination": "C4C_PROD_HARDCODED",
-          "path": "/sap/c4c/odata/v1/c4codataapi"
+        "[development]": {
+          "credentials": { "url": "https://my332854.crm.ondemand.com/sap/c4c/odata/v1/c4codataapi" }
+        },
+        "[hybrid]": {
+          "credentials": { "destination": "C4C_PROD_HARDCODED", "path": "/sap/c4c/odata/v1/c4codataapi" }
+        },
+        "[production]": {
+          "credentials": { "destination": "C4C_PROD_HARDCODED", "path": "/sap/c4c/odata/v1/c4codataapi" }
         }
       },
       "TARGET_ENDPOINT": {
