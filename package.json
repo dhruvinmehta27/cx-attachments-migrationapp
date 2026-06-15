@@ -6,6 +6,9 @@
     "@sap/cds": "^9",
     "@cap-js/hana": "^2",
     "@sap/xssec": "^4",
+    "@sap-cloud-sdk/connectivity": "^4",
+    "@sap-cloud-sdk/http-client": "^4",
+    "@sap-cloud-sdk/resilience": "^4",
     "express": "^4"
   },
   "devDependencies": {
