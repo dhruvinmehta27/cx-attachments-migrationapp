@@ -14,8 +14,8 @@ class C4CClient {
   /** Read a single account by its C4C ObjectID. */
   async getAccount(objectID) {
     const c4c = await this.connect();
-    const { AccountCollection } = c4c.entities;
-    return c4c.run(SELECT.one.from(AccountCollection).where({ ObjectID: objectID }));
+    const { CorporateAccountCollection } = c4c.entities;
+    return c4c.run(SELECT.one.from(CorporateAccountCollection).where({ ObjectID: objectID }));
   }
 
   /**
@@ -25,8 +25,8 @@ class C4CClient {
    */
   async listAttachments(accountObjectID, onlyIDs) {
     const c4c = await this.connect();
-    const { AccountAttachmentFolder } = c4c.entities;
-    let q = SELECT.from(AccountAttachmentFolder)
+    const { CorporateAccountAttachmentFolder } = c4c.entities;
+    let q = SELECT.from(CorporateAccountAttachmentFolder)
       .columns('ObjectID', 'ParentObjectID', 'Name', 'MimeType', 'Size', 'DocumentLink', 'CategoryCode')
       .where({ ParentObjectID: accountObjectID });
     if (onlyIDs?.length) q = q.where({ ObjectID: { in: onlyIDs } });
@@ -36,9 +36,9 @@ class C4CClient {
   /** Read the metadata of a single attachment by its ObjectID. */
   async getAttachmentMeta(attachmentObjectID) {
     const c4c = await this.connect();
-    const { AccountAttachmentFolder } = c4c.entities;
+    const { CorporateAccountAttachmentFolder } = c4c.entities;
     return c4c.run(
-      SELECT.one.from(AccountAttachmentFolder)
+      SELECT.one.from(CorporateAccountAttachmentFolder)
         .columns('ObjectID', 'ParentObjectID', 'Name', 'MimeType', 'Size', 'DocumentLink', 'CategoryCode')
         .where({ ObjectID: attachmentObjectID })
     );
@@ -50,9 +50,9 @@ class C4CClient {
    */
   async getAttachmentContent(attachmentObjectID) {
     const c4c = await this.connect();
-    const { AccountAttachmentFolder } = c4c.entities;
+    const { CorporateAccountAttachmentFolder } = c4c.entities;
     const row = await c4c.run(
-      SELECT.one.from(AccountAttachmentFolder)
+      SELECT.one.from(CorporateAccountAttachmentFolder)
         .columns('ObjectID', 'Name', 'MimeType', 'Binary')
         .where({ ObjectID: attachmentObjectID })
     );

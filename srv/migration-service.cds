@@ -13,7 +13,7 @@ service MigrationService @(path: '/migration', requires: 'authenticated-user') {
 
   @readonly
   @cds.redirection.target
-  entity Accounts as projection on C4C_ODATA.AccountCollection {
+  entity Accounts as projection on C4C_ODATA.CorporateAccountCollection {
     key ObjectID            as ID,
         AccountID           as accountID,
         Name                as name,
@@ -22,7 +22,7 @@ service MigrationService @(path: '/migration', requires: 'authenticated-user') {
         City                as city,
         CountryCode         as country,
         EntityLastChangedOn as changedAt,
-        AccountAttachmentFolder as attachments : redirected to Attachments
+        CorporateAccountAttachmentFolder as attachments : redirected to Attachments
   } actions {
     /** Migrate all (or the given) attachments of this account to the target endpoint. */
     action migrateAttachments(
@@ -32,7 +32,7 @@ service MigrationService @(path: '/migration', requires: 'authenticated-user') {
   };
 
   @readonly
-  entity Attachments as projection on C4C_ODATA.AccountAttachmentFolder {
+  entity Attachments as projection on C4C_ODATA.CorporateAccountAttachmentFolder {
     key ObjectID       as ID,
         ParentObjectID as accountObjectID,
         Name           as fileName,

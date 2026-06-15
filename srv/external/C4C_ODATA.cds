@@ -11,8 +11,8 @@
 @path: '/sap/c4c/odata/v1/c4codataapi'
 service C4C_ODATA {
 
-  /** Corporate / individual accounts maintained in C4C. */
-  entity AccountCollection {
+  /** Corporate accounts maintained in C4C. */
+  entity CorporateAccountCollection {
     key ObjectID            : String(70);
         AccountID           : String(60);
         Name                : String(255);
@@ -23,12 +23,12 @@ service C4C_ODATA {
         City                : String(60);
         EntityLastChangedOn : Timestamp;
         // Navigation to the account's attachment folder.
-        AccountAttachmentFolder : Association to many AccountAttachmentFolder
-                                    on AccountAttachmentFolder.ParentObjectID = ObjectID;
+        CorporateAccountAttachmentFolder : Association to many CorporateAccountAttachmentFolder
+                                    on CorporateAccountAttachmentFolder.ParentObjectID = ObjectID;
   }
 
-  /** Attachments (documents) linked to an account. */
-  entity AccountAttachmentFolder {
+  /** Attachments (documents) linked to a corporate account. */
+  entity CorporateAccountAttachmentFolder {
     key ObjectID        : String(70);
         ParentObjectID  : String(70);
         Name            : String(255);   // file name
