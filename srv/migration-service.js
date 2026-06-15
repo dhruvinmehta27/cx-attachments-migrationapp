@@ -10,6 +10,19 @@ module.exports = class MigrationService extends cds.ApplicationService {
   async init() {
     const { MigrationItems } = this.entities;
 
+    // ---- Forward reads of the remote (C4C) entities -------------------
+    // Accounts/Attachments are projections on the external C4C service and
+    // have no local persistence, so their READs must be delegated to C4C.
+    this.on('READ', 'Accounts', async (req) => {
+      const C4C = await cds.connect.to('C4C_ODATA');
+      return C4C.run(req.query);
+    });
+
+    this.on('READ', 'Attachments', async (req) => {
+      const C4C = await cds.connect.to('C4C_ODATA');
+      return C4C.run(req.query);
+    });
+
     // Bound action on Accounts: migrate all / selected attachments of an account.
     this.on('migrateAttachments', 'Accounts', async (req) => {
       const accountObjectID = req.params.at(-1)?.ID || req.params.at(-1);
