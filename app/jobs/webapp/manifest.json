@@ -49,7 +49,6 @@
       }
     },
     "routing": {
-      "config": { "routerClass": "sap.fe.core.AppComponent" },
       "routes": [
         { "pattern": ":?query:", "name": "JobsList", "target": "JobsList" },
         { "pattern": "MigrationJobs({key}):?query:", "name": "JobObjectPage", "target": "JobObjectPage" }

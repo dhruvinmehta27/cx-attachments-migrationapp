@@ -58,9 +58,6 @@
       }
     },
     "routing": {
-      "config": {
-        "routerClass": "sap.fe.core.AppComponent"
-      },
       "routes": [
         {
           "pattern": ":?query:",
