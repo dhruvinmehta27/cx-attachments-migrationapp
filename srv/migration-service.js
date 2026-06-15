@@ -6,19 +6,28 @@ const target = require('./lib/target-client');
 // audit log can be written from within the action handlers.
 const DB_JOBS = 'cx.migration.MigrationJobs';
 
+/** Convert a C4C OData v2 date ("/Date(ms[+offset])/") into an ISO timestamp. */
+function parseC4CDate(v) {
+  if (v == null) return null;
+  const m = /\/Date\((-?\d+)([+-]\d+)?\)\//.exec(String(v));
+  if (m) return new Date(Number(m[1])).toISOString();
+  const d = new Date(v);
+  return isNaN(d) ? null : d.toISOString();
+}
+
 /** Map a raw C4C attachment row onto the MigrationService.Attachments element names. */
 function toAttachment(r) {
   return {
     ID: r.ObjectID,
     accountObjectID: r.ParentObjectID,
-    accountID: r.AccountID,
+    accountID: r.AccountID?.trim(),
     fileName: r.Name,
     mimeType: r.MimeType,
-    fileSizeKB: r.SizeInkB,
+    fileSizeKB: r.SizeInkB != null ? Number(r.SizeInkB) : null,
     category: r.CategoryCode,
     documentType: r.TypeCodeText,
     documentLink: r.DocumentLink,
-    createdAt: r.CreatedOn,
+    createdAt: parseC4CDate(r.CreatedOn),
     createdBy: r.CreatedBy
   };
 }
@@ -133,7 +142,7 @@ module.exports = class MigrationService extends cds.ApplicationService {
         attachmentID: att.ObjectID,
         fileName: att.Name,
         mimeType: att.MimeType,
-        fileSizeKB: att.SizeInkB || 0,
+        fileSizeKB: Number(att.SizeInkB) || 0,
         status: 'Pending'
       };
       try {
