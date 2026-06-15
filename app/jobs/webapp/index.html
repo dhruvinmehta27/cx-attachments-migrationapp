@@ -5,6 +5,13 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Migration Jobs</title>
+    <style>
+      html, body, #content {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+    </style>
     <script
       id="sap-ui-bootstrap"
       src="https://ui5.sap.com/resources/sap-ui-core.js"
@@ -16,12 +23,13 @@
       data-sap-ui-frameOptions="trusted"
     ></script>
   </head>
-  <body class="sapUiBody">
+  <body class="sapUiBody" id="content">
     <div
       data-sap-ui-component
       data-name="cx.migration.jobs"
       data-id="container"
       data-settings='{ "id": "cx.migration.jobs" }'
+      data-height="100%"
     ></div>
   </body>
 </html>
