@@ -1,0 +1,111 @@
+_schema-version: "3.2"
+ID: cx-attachments-migrationapp
+version: 1.0.0
+description: "SAP CAP app to migrate SAP C4C account attachments to a target endpoint"
+parameters:
+  enable-parallel-deployments: true
+
+build-parameters:
+  before-all:
+    - builder: custom
+      commands:
+        - npm ci
+        - npx cds build --production
+
+modules:
+  # ---- CAP service (Node.js) -----------------------------------------
+  - name: cx-attachments-migrationapp-srv
+    type: nodejs
+    path: gen/srv
+    parameters:
+      buildpack: nodejs_buildpack
+      memory: 256M
+    build-parameters:
+      builder: npm
+    provides:
+      - name: srv-api
+        properties:
+          srv-url: ${default-url}
+    requires:
+      - name: cx-attachments-migrationapp-db
+      - name: cx-attachments-migrationapp-auth
+      - name: cx-attachments-migrationapp-destination
+
+  # ---- HANA deployer -------------------------------------------------
+  - name: cx-attachments-migrationapp-db-deployer
+    type: hdb
+    path: gen/db
+    parameters:
+      buildpack: nodejs_buildpack
+    requires:
+      - name: cx-attachments-migrationapp-db
+
+  # ---- Fiori launchpad / app host ------------------------------------
+  - name: cx-attachments-migrationapp-app-content
+    type: com.sap.application.content
+    path: .
+    requires:
+      - name: cx-attachments-migrationapp-html5-repo-host
+        parameters:
+          content-target: true
+    build-parameters:
+      build-result: resources
+      requires:
+        - artifacts:
+            - migration.zip
+          name: migrationapp
+          target-path: resources/
+        - artifacts:
+            - jobs.zip
+          name: jobsapp
+          target-path: resources/
+
+  - name: migrationapp
+    type: html5
+    path: app/migration
+    build-parameters:
+      build-result: dist
+      builder: custom
+      commands:
+        - npm install
+        - npm run build:cf
+      supported-platforms: []
+
+  - name: jobsapp
+    type: html5
+    path: app/jobs
+    build-parameters:
+      build-result: dist
+      builder: custom
+      commands:
+        - npm install
+        - npm run build:cf
+      supported-platforms: []
+
+resources:
+  - name: cx-attachments-migrationapp-db
+    type: com.sap.xs.hdi-container
+    parameters:
+      service: hana
+      service-plan: hdi-shared
+
+  - name: cx-attachments-migrationapp-auth
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: xsuaa
+      service-plan: application
+      path: ./xs-security.json
+      config:
+        xsappname: cx-attachments-migrationapp-${org}-${space}
+
+  - name: cx-attachments-migrationapp-destination
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: destination
+      service-plan: lite
+
+  - name: cx-attachments-migrationapp-html5-repo-host
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: html5-apps-repo
+      service-plan: app-host

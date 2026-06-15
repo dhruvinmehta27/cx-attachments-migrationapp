@@ -1,0 +1,25 @@
+{
+  "xsappname": "cx-attachments-migrationapp",
+  "tenant-mode": "dedicated",
+  "description": "Security profile for the C4C Attachment Migration app",
+  "scopes": [
+    {
+      "name": "$XSAPPNAME.Migrate",
+      "description": "Migrate C4C attachments to the target endpoint"
+    }
+  ],
+  "role-templates": [
+    {
+      "name": "MigrationUser",
+      "description": "Browse C4C accounts/attachments and run migrations",
+      "scope-references": [ "$XSAPPNAME.Migrate" ]
+    }
+  ],
+  "role-collections": [
+    {
+      "name": "C4C_Migration_User",
+      "description": "C4C Attachment Migration User",
+      "role-template-references": [ "$XSAPPNAME.MigrationUser" ]
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "name": "cx-attachments-migrationapp",
+  "version": "1.0.0",
+  "description": "SAP CAP application to migrate SAP C4C account attachments to a configurable target endpoint, with a Fiori elements UI.",
+  "dependencies": {
+    "@sap/cds": "^9",
+    "@cap-js/hana": "^2",
+    "@sap/xssec": "^4",
+    "express": "^4"
+  },
+  "devDependencies": {
+    "@cap-js/sqlite": "^2.4",
+    "@sap/cds-dk": "^9"
+  },
+  "scripts": {
+    "start": "cds-serve",
+    "watch": "cds watch"
+  },
+  "cds": {
+    "requires": {
+      "auth": {
+        "[development]": { "kind": "mocked" },
+        "[production]": { "kind": "xsuaa" }
+      },
+      "db": {
+        "[development]": { "kind": "sqlite", "credentials": { "url": ":memory:" } },
+        "[production]": { "kind": "hana-cloud" }
+      },
+      "C4C_ODATA": {
+        "kind": "odata-v2",
+        "model": "srv/external/C4C_ODATA",
+        "[development]": {
+          "credentials": { "url": "https://my-c4c-tenant.crm.ondemand.com" }
+        },
+        "[production]": {
+          "credentials": { "destination": "SAP_C4C", "path": "/sap/c4c/odata/v1/c4codataapi" }
+        }
+      },
+      "TARGET_ENDPOINT": {
+        "kind": "rest",
+        "[production]": {
+          "credentials": { "destination": "MIGRATION_TARGET" }
+        }
+      }
+    }
+  },
+  "sapux": [
+    "app/migration",
+    "app/jobs"
+  ],
+  "private": true
+}

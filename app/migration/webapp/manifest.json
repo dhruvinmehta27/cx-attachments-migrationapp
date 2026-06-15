@@ -1,0 +1,126 @@
+{
+  "_version": "1.59.0",
+  "sap.app": {
+    "id": "cx.migration.attachments",
+    "type": "application",
+    "title": "{{appTitle}}",
+    "description": "{{appDescription}}",
+    "i18n": "i18n/i18n.properties",
+    "applicationVersion": { "version": "1.0.0" },
+    "dataSources": {
+      "mainService": {
+        "uri": "/migration/",
+        "type": "OData",
+        "settings": {
+          "odataVersion": "4.0",
+          "localUri": "localService/metadata.xml"
+        }
+      }
+    },
+    "crossNavigation": {
+      "inbounds": {
+        "migration-display": {
+          "semanticObject": "Attachment",
+          "action": "migrate",
+          "signature": { "parameters": {}, "additionalParameters": "allowed" }
+        }
+      }
+    }
+  },
+  "sap.ui": {
+    "technology": "UI5",
+    "icons": { "icon": "sap-icon://attachment" },
+    "deviceTypes": { "desktop": true, "tablet": true, "phone": true }
+  },
+  "sap.ui5": {
+    "flexEnabled": true,
+    "dependencies": {
+      "minUI5Version": "1.120.0",
+      "libs": {
+        "sap.m": {},
+        "sap.ui.core": {},
+        "sap.fe.templates": {}
+      }
+    },
+    "models": {
+      "i18n": {
+        "type": "sap.ui.model.resource.ResourceModel",
+        "settings": { "bundleName": "cx.migration.attachments.i18n.i18n" }
+      },
+      "": {
+        "dataSource": "mainService",
+        "preload": true,
+        "settings": {
+          "synchronizationMode": "None",
+          "operationMode": "Server",
+          "autoExpandSelect": true,
+          "earlyRequests": true
+        }
+      }
+    },
+    "routing": {
+      "config": {
+        "routerClass": "sap.fe.core.AppComponent"
+      },
+      "routes": [
+        {
+          "pattern": ":?query:",
+          "name": "AccountsList",
+          "target": "AccountsList"
+        },
+        {
+          "pattern": "Accounts({key}):?query:",
+          "name": "AccountObjectPage",
+          "target": "AccountObjectPage"
+        },
+        {
+          "pattern": "Accounts({key})/attachments({key2}):?query:",
+          "name": "AttachmentObjectPage",
+          "target": "AttachmentObjectPage"
+        }
+      ],
+      "targets": {
+        "AccountsList": {
+          "type": "Component",
+          "id": "AccountsList",
+          "name": "sap.fe.templates.ListReport",
+          "options": {
+            "settings": {
+              "contextPath": "/Accounts",
+              "variantManagement": "Page",
+              "initialLoad": "Enabled",
+              "navigation": {
+                "Accounts": { "detail": { "route": "AccountObjectPage" } }
+              }
+            }
+          }
+        },
+        "AccountObjectPage": {
+          "type": "Component",
+          "id": "AccountObjectPage",
+          "name": "sap.fe.templates.ObjectPage",
+          "options": {
+            "settings": {
+              "contextPath": "/Accounts",
+              "navigation": {
+                "attachments": { "detail": { "route": "AttachmentObjectPage" } }
+              }
+            }
+          }
+        },
+        "AttachmentObjectPage": {
+          "type": "Component",
+          "id": "AttachmentObjectPage",
+          "name": "sap.fe.templates.ObjectPage",
+          "options": {
+            "settings": { "contextPath": "/Accounts/attachments" }
+          }
+        }
+      }
+    }
+  },
+  "sap.fiori": {
+    "registrationIds": [],
+    "archeType": "transactional"
+  }
+}
