@@ -25,9 +25,9 @@ class C4CClient {
    */
   async listAttachments(accountObjectID, onlyIDs) {
     const c4c = await this.connect();
-    const { CorporateAccountAttachmentFolder } = c4c.entities;
-    let q = SELECT.from(CorporateAccountAttachmentFolder)
-      .columns('ObjectID', 'ParentObjectID', 'Name', 'MimeType', 'Size', 'DocumentLink', 'CategoryCode')
+    const { CorporateAccountAttachmentFolderCollection } = c4c.entities;
+    let q = SELECT.from(CorporateAccountAttachmentFolderCollection)
+      .columns('ObjectID', 'ParentObjectID', 'Name', 'MimeType', 'SizeInkB', 'DocumentLink', 'CategoryCode')
       .where({ ParentObjectID: accountObjectID });
     if (onlyIDs?.length) q = q.where({ ObjectID: { in: onlyIDs } });
     return c4c.run(q);
@@ -36,10 +36,10 @@ class C4CClient {
   /** Read the metadata of a single attachment by its ObjectID. */
   async getAttachmentMeta(attachmentObjectID) {
     const c4c = await this.connect();
-    const { CorporateAccountAttachmentFolder } = c4c.entities;
+    const { CorporateAccountAttachmentFolderCollection } = c4c.entities;
     return c4c.run(
-      SELECT.one.from(CorporateAccountAttachmentFolder)
-        .columns('ObjectID', 'ParentObjectID', 'Name', 'MimeType', 'Size', 'DocumentLink', 'CategoryCode')
+      SELECT.one.from(CorporateAccountAttachmentFolderCollection)
+        .columns('ObjectID', 'ParentObjectID', 'Name', 'MimeType', 'SizeInkB', 'DocumentLink', 'CategoryCode')
         .where({ ObjectID: attachmentObjectID })
     );
   }
@@ -50,9 +50,9 @@ class C4CClient {
    */
   async getAttachmentContent(attachmentObjectID) {
     const c4c = await this.connect();
-    const { CorporateAccountAttachmentFolder } = c4c.entities;
+    const { CorporateAccountAttachmentFolderCollection } = c4c.entities;
     const row = await c4c.run(
-      SELECT.one.from(CorporateAccountAttachmentFolder)
+      SELECT.one.from(CorporateAccountAttachmentFolderCollection)
         .columns('ObjectID', 'Name', 'MimeType', 'Binary')
         .where({ ObjectID: attachmentObjectID })
     );

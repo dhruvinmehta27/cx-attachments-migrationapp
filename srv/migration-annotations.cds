@@ -72,8 +72,9 @@ annotate MigrationService.Attachments with @(
   UI: {
     LineItem: [
       { Value: fileName, Label: 'File Name' },
+      { Value: documentType, Label: 'Document Type' },
       { Value: mimeType, Label: 'Type' },
-      { Value: fileSize, Label: 'Size' },
+      { Value: fileSizeKB, Label: 'Size (kB)' },
       { Value: category, Label: 'Category' },
       { Value: createdAt, Label: 'Created On' },
       {
@@ -86,12 +87,13 @@ annotate MigrationService.Attachments with @(
 );
 
 annotate MigrationService.Attachments with {
-  fileName  @title: 'File Name';
-  mimeType  @title: 'MIME Type';
-  fileSize  @title: 'Size (bytes)';
-  category  @title: 'Category';
-  createdAt @title: 'Created On';
-  createdBy @title: 'Created By';
+  fileName     @title: 'File Name';
+  mimeType     @title: 'MIME Type';
+  fileSizeKB   @title: 'Size (kB)';
+  category     @title: 'Category';
+  documentType @title: 'Document Type';
+  createdAt    @title: 'Created On';
+  createdBy    @title: 'Created By';
 };
 
 // =====================================================================
@@ -149,10 +151,10 @@ annotate MigrationService.MigrationJobs with @(
 annotate MigrationService.MigrationItems with @(
   UI: {
     LineItem: [
-      { Value: fileName,  Label: 'File Name' },
-      { Value: mimeType,  Label: 'Type' },
-      { Value: fileSize,  Label: 'Size' },
-      { Value: status,    Label: 'Status', Criticality: itemCriticality },
+      { Value: fileName,   Label: 'File Name' },
+      { Value: mimeType,   Label: 'Type' },
+      { Value: fileSizeKB, Label: 'Size (kB)' },
+      { Value: status,     Label: 'Status', Criticality: itemCriticality },
       { Value: targetRef, Label: 'Target Reference' },
       { Value: message,   Label: 'Message' }
     ]

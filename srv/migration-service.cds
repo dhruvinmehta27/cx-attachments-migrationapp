@@ -32,13 +32,15 @@ service MigrationService @(path: '/migration', requires: 'authenticated-user') {
   };
 
   @readonly
-  entity Attachments as projection on C4C_ODATA.CorporateAccountAttachmentFolder {
+  entity Attachments as projection on C4C_ODATA.CorporateAccountAttachmentFolderCollection {
     key ObjectID       as ID,
         ParentObjectID as accountObjectID,
+        AccountID      as accountID,
         Name           as fileName,
         MimeType       as mimeType,
-        Size           as fileSize,
+        SizeInkB       as fileSizeKB,
         CategoryCode   as category,
+        TypeCodeText   as documentType,
         DocumentLink   as documentLink,
         CreatedOn      as createdAt,
         CreatedBy      as createdBy

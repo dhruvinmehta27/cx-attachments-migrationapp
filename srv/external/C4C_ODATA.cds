@@ -23,21 +23,23 @@ service C4C_ODATA {
         City                : String(60);
         EntityLastChangedOn : Timestamp;
         // Navigation to the account's attachment folder.
-        CorporateAccountAttachmentFolder : Association to many CorporateAccountAttachmentFolder
+        CorporateAccountAttachmentFolder : Association to many CorporateAccountAttachmentFolderCollection
                                     on CorporateAccountAttachmentFolder.ParentObjectID = ObjectID;
   }
 
   /** Attachments (documents) linked to a corporate account. */
-  entity CorporateAccountAttachmentFolder {
+  entity CorporateAccountAttachmentFolderCollection {
     key ObjectID        : String(70);
         ParentObjectID  : String(70);
+        AccountID       : String(60);
         Name            : String(255);   // file name
         CategoryCode    : String(10);
         TypeCode        : String(10);
+        TypeCodeText    : String(120);
         MimeType        : String(120);
         DocumentLink    : String(1024);  // URL to download binary
         Binary          : LargeBinary;   // base64 content (when requested)
-        Size            : Integer64;
+        SizeInkB        : Decimal(15, 2);
         CreatedOn       : Timestamp;
         CreatedBy       : String(120);
   }

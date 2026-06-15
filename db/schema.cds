@@ -30,9 +30,9 @@ entity MigrationJobs : cuid, managed {
 entity MigrationItems : cuid {
   job            : Association to MigrationJobs;
   attachmentID   : String(60)   @title: 'Attachment ID';
-  fileName       : String(255)  @title: 'File Name';
-  mimeType       : String(120)  @title: 'MIME Type';
-  fileSize       : Integer64    @title: 'Size (bytes)';
+  fileName       : String(255)    @title: 'File Name';
+  mimeType       : String(120)    @title: 'MIME Type';
+  fileSizeKB     : Decimal(15, 2) @title: 'Size (kB)';
   status         : ItemStatus   @title: 'Status' default 'Pending';
   targetRef      : String(1024) @title: 'Target Reference';
   message        : String(2000) @title: 'Message';

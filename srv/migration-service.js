@@ -83,7 +83,7 @@ module.exports = class MigrationService extends cds.ApplicationService {
         attachmentID: att.ObjectID,
         fileName: att.Name,
         mimeType: att.MimeType,
-        fileSize: att.Size || 0,
+        fileSizeKB: att.SizeInkB || 0,
         status: 'Pending'
       };
       try {
