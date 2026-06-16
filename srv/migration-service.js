@@ -2,7 +2,9 @@ const cds = require('@sap/cds');
 const { Readable } = require('stream');
 const c4c = require('./lib/c4c-client');
 const target = require('./lib/target-client');
-const { parseAccountIDs, buildAccountFilter, resolveAccountList } = require('./lib/query-accounts');
+const { parseAccountIDs, buildAccountFilter, resolveAccountList, countQueryAccounts } = require('./lib/query-accounts');
+
+const DOWNLOAD_BATCH_SIZE = 500;
 
 // Persistence-level entities (not the @readonly service projections), so they
 // can be written from within the action handlers.
@@ -106,6 +108,30 @@ module.exports = class MigrationService extends cds.ApplicationService {
         r.downloadUrl = `/migration/download/query/${r.ID}`;
         r.downloadLabel = 'Download (ZIP, folder per account)';
       }
+    });
+
+    // Compute the download batches for a saved query (~500 accounts each).
+    this.on('READ', 'DownloadBatches', async (req) => {
+      const queryID = req.params?.[0]?.ID || req.params?.[0] || findFilterValue(req.query.SELECT?.where, 'queryID');
+      if (!queryID) return [];
+      const q = await cds.run(SELECT.one.from(DB_QUERIES).where({ ID: queryID }));
+      if (!q) return [];
+      const total = await countQueryAccounts(q);
+      const numBatches = Math.max(1, Math.ceil(total / DOWNLOAD_BATCH_SIZE));
+      const rows = [];
+      for (let i = 0; i < numBatches; i++) {
+        const from = i * DOWNLOAD_BATCH_SIZE + 1;
+        const to = Math.min((i + 1) * DOWNLOAD_BATCH_SIZE, total);
+        rows.push({
+          queryID,
+          batchNo: i + 1,
+          batchLabel: `Batch ${i + 1} of ${numBatches} (accounts ${from}–${to})`,
+          accountCount: to - from + 1,
+          downloadUrl: `/migration/download/query/${queryID}/batch/${i}?size=${DOWNLOAD_BATCH_SIZE}`,
+          downloadLabel: 'Download batch (ZIP)'
+        });
+      }
+      return rows;
     });
 
     // ---- Reads of the remote (C4C) entities ---------------------------

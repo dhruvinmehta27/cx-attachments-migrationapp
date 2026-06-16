@@ -48,4 +48,26 @@ async function resolveQueryAccounts(q, { max = 500000 } = {}) {
   return out;
 }
 
-module.exports = { parseAccountIDs, buildAccountFilter, resolveAccountList, resolveQueryAccounts };
+/** Total number of accounts a query targets (uses count endpoints, no full resolve). */
+async function countQueryAccounts(q) {
+  const ids = parseAccountIDs(q.filterAccountIDs);
+  if (ids.length) return ids.length;
+  if (q.filterSalesOrg) return c4c.countAccountsBySalesOrg(q.filterSalesOrg);
+  return c4c.countAccounts(buildAccountFilter(q));
+}
+
+/** Resolve just one batch (skip/top window) of a query's accounts - no full resolve. */
+async function resolveAccountsBatch(q, { skip = 0, top = 500 } = {}) {
+  const ids = parseAccountIDs(q.filterAccountIDs);
+  if (ids.length) return c4c.findAccountsByIDs(ids.slice(skip, skip + top));
+  if (q.filterSalesOrg) {
+    const { parentIDs } = await c4c.salesOrgAccountPage(q.filterSalesOrg, { skip, top, withCount: false });
+    return c4c.findAccountsByObjectIDs(parentIDs);
+  }
+  return c4c.listAccounts({ filter: buildAccountFilter(q), skip, top });
+}
+
+module.exports = {
+  parseAccountIDs, buildAccountFilter, resolveAccountList,
+  resolveQueryAccounts, countQueryAccounts, resolveAccountsBatch
+};

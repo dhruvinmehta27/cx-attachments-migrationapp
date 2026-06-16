@@ -63,7 +63,9 @@ service MigrationService @(path: '/migration', requires: 'authenticated-user') {
   entity SavedQueries as projection on db.SavedQueries {
     *,
     null as downloadUrl : String(2048),  // link to the per-query zip (folder per account)
-    null as downloadLabel : String(60)   // visible link text (set in handler)
+    null as downloadLabel : String(60),  // visible link text (set in handler)
+    // Download batches for large result sets (computed, ~500 accounts each).
+    batches : Association to many DownloadBatches on batches.queryID = ID
   } actions {
     /** How many C4C accounts currently match this query's filter. */
     function previewCount() returns Integer;
@@ -73,6 +75,18 @@ service MigrationService @(path: '/migration', requires: 'authenticated-user') {
       targetEndpoint : String(1024) @title: 'Target Endpoint' @mandatory
     ) returns MigrationJobs;
   };
+
+  /** Virtual download batches of a saved query (no persistence; computed on read). */
+  @readonly
+  @cds.persistence.skip
+  entity DownloadBatches {
+    key queryID       : UUID            @title: 'Query';
+    key batchNo       : Integer         @title: 'Batch';
+        batchLabel    : String(120)     @title: 'Batch';
+        accountCount  : Integer         @title: 'Accounts';
+        downloadUrl   : String(2048);
+        downloadLabel : String(60);
+  }
 
   // ---- Audit log: persisted migration jobs ----------------------------
 

@@ -241,6 +241,12 @@ annotate MigrationService.SavedQueries with @(
         ID: 'Filters',
         Label: 'Account Filter Criteria',
         Target: '@UI.FieldGroup#Filters'
+      },
+      {
+        $Type: 'UI.ReferenceFacet',
+        ID: 'Batches',
+        Label: 'Download Batches',
+        Target: 'batches/@UI.LineItem'
       }
     ],
     FieldGroup#General: {
@@ -279,3 +285,16 @@ annotate MigrationService.SavedQueries with {
   filterRole       @title: 'Role';
   filterStatus     @title: 'Life Cycle Status';
 };
+
+// =====================================================================
+//  Download Batches - one downloadable ZIP per ~500 accounts of a query
+// =====================================================================
+annotate MigrationService.DownloadBatches with @(
+  UI: {
+    LineItem: [
+      { Value: batchLabel,   Label: 'Batch' },
+      { Value: accountCount, Label: 'Accounts' },
+      { $Type: 'UI.DataFieldWithUrl', Value: downloadLabel, Url: downloadUrl, Label: 'Download' }
+    ]
+  }
+);

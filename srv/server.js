@@ -1,7 +1,9 @@
 const cds = require('@sap/cds');
 const archiver = require('archiver');
 const c4c = require('./lib/c4c-client');
-const { resolveQueryAccounts } = require('./lib/query-accounts');
+const { resolveQueryAccounts, resolveAccountsBatch } = require('./lib/query-accounts');
+
+const BATCH_SIZE = 500;
 
 /** Make a string safe to use as a file/folder name inside a zip. */
 function safeName(s, fallback) {
@@ -71,6 +73,22 @@ cds.on('bootstrap', (app) => {
       const accounts = await resolveQueryAccounts(q);
       if (!accounts.length) return res.status(404).send('No accounts match this query.');
       await streamAccountsZip(res, accounts, q.queryName || 'query');
+    } catch (e) {
+      cds.log('download').error(e);
+      if (!res.headersSent) res.status(502).send(`Download failed: ${e.message}`);
+    }
+  });
+
+  // Download one batch of a saved query (default 500 accounts), foldered by Account ID.
+  app.get('/migration/download/query/:id/batch/:batchNo', async (req, res) => {
+    try {
+      const q = await cds.run(SELECT.one.from('cx.migration.SavedQueries').where({ ID: req.params.id }));
+      if (!q) return res.status(404).send('Saved query not found.');
+      const size = Math.max(1, Number(req.query.size) || BATCH_SIZE);
+      const batchNo = Math.max(0, Number(req.params.batchNo) || 0);
+      const accounts = await resolveAccountsBatch(q, { skip: batchNo * size, top: size });
+      if (!accounts.length) return res.status(404).send('No accounts in this batch.');
+      await streamAccountsZip(res, accounts, `${q.queryName || 'query'}_batch_${batchNo + 1}`);
     } catch (e) {
       cds.log('download').error(e);
       if (!res.headersSent) res.status(502).send(`Download failed: ${e.message}`);
