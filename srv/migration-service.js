@@ -53,6 +53,37 @@ function parseC4CDate(v) {
   return isNaN(d) ? null : d.toISOString();
 }
 
+/** Map a raw C4C account row onto the MigrationService.Accounts element names. */
+function toAccount(r) {
+  return {
+    ID: r.ObjectID,
+    accountID: r.AccountID?.trim(),
+    name: r.Name,
+    role: r.RoleCodeText,
+    lifeCycleStatus: r.LifeCycleStatusCode,
+    city: r.City,
+    country: r.CountryCode,
+    changedAt: parseC4CDate(r.EntityLastChangedOn),
+    salesOrg: null
+  };
+}
+
+/** Find the equality value for a field anywhere in a (possibly nested) CQN where. */
+function findFilterValue(where, field) {
+  if (!Array.isArray(where)) return undefined;
+  for (let i = 0; i < where.length; i++) {
+    const t = where[i];
+    if (t?.xpr) {
+      const v = findFilterValue(t.xpr, field);
+      if (v !== undefined) return v;
+    }
+    if (t?.ref?.at(-1) === field && where[i + 1] === '=' && where[i + 2]?.val !== undefined) {
+      return where[i + 2].val;
+    }
+  }
+  return undefined;
+}
+
 /** Map a raw C4C attachment row onto the MigrationService.Attachments element names. */
 function toAttachment(r) {
   return {
@@ -94,8 +125,22 @@ function parentAccountID(req) {
 module.exports = class MigrationService extends cds.ApplicationService {
   async init() {
     // ---- Reads of the remote (C4C) entities ---------------------------
-    // Accounts come straight from the C4C account collection.
+    // Accounts come straight from the C4C account collection, except when the
+    // virtual Sales Organization filter is used - then we resolve the matching
+    // accounts via the sales-data collection and return those.
     this.on('READ', 'Accounts', async (req) => {
+      const salesOrg = findFilterValue(req.query.SELECT?.where, 'salesOrg');
+      if (salesOrg) {
+        const sa = await c4c.findAccountsBySalesOrg(salesOrg);
+        const ids = sa.map(a => a.ObjectID);
+        if (!ids.length) return [];
+        let rows = (await c4c.findAccountsByObjectIDs(ids)).map(toAccount);
+        // Honour the list report's paging on the resolved set.
+        const offset = req.query.SELECT?.limit?.offset?.val ?? 0;
+        const rowsLimit = req.query.SELECT?.limit?.rows?.val;
+        if (rowsLimit != null) rows = rows.slice(offset, offset + rowsLimit);
+        return rows;
+      }
       const C4C = await cds.connect.to('C4C_ODATA');
       return C4C.run(req.query);
     });

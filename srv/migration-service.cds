@@ -22,6 +22,8 @@ service MigrationService @(path: '/migration', requires: 'authenticated-user') {
         City                as city,
         CountryCode         as country,
         EntityLastChangedOn as changedAt,
+        // Virtual filter only (resolved via the sales-data collection); never read from C4C.
+        null                as salesOrg : String(40),
         CorporateAccountAttachmentFolder as attachments : redirected to Attachments
   } actions {
     /** Migrate all attachments of this account to the target endpoint.

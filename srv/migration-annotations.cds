@@ -5,7 +5,7 @@ using MigrationService from './migration-service';
 // =====================================================================
 annotate MigrationService.Accounts with @(
   UI: {
-    SelectionFields: [ accountID, name, city, country ],
+    SelectionFields: [ accountID, name, city, country, salesOrg ],
     LineItem: [
       {
         $Type: 'UI.DataFieldForAction',
@@ -68,6 +68,7 @@ annotate MigrationService.Accounts with {
   country   @title: 'Country';
   lifeCycleStatus @title: 'Status';
   changedAt @title: 'Last Changed';
+  salesOrg  @title: 'Sales Organization';
 };
 
 // =====================================================================

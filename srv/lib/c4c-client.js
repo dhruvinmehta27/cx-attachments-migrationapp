@@ -89,6 +89,26 @@ class C4CClient {
     return [...out.values()];
   }
 
+  /** Fetch full account records for a list of ObjectIDs (chunked OR queries). */
+  async findAccountsByObjectIDs(objectIDs, { chunkSize = 30 } = {}) {
+    if (!objectIDs?.length) return [];
+    const c4c = await this.connect();
+    const { CorporateAccountCollection } = c4c.entities;
+    const cols = ['ObjectID', 'AccountID', 'Name', 'RoleCodeText', 'LifeCycleStatusCode', 'City', 'CountryCode', 'EntityLastChangedOn'];
+    const out = new Map();
+    for (let i = 0; i < objectIDs.length; i += chunkSize) {
+      const chunk = objectIDs.slice(i, i + chunkSize);
+      const xpr = [];
+      chunk.forEach((id, j) => {
+        if (j) xpr.push('or');
+        xpr.push({ ref: ['ObjectID'] }, '=', { val: id });
+      });
+      const rows = await c4c.run(SELECT.from(CorporateAccountCollection).columns(...cols).where(xpr));
+      for (const r of rows) out.set(r.ObjectID, r);
+    }
+    return [...out.values()];
+  }
+
   /** Count accounts matching a filter (pages through ObjectIDs only). */
   async countAccounts(filter, { max = 100000, pageSize = 1000 } = {}) {
     let skip = 0, total = 0;
