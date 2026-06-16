@@ -46,7 +46,7 @@ class C4CClient {
    * Resolve accounts for an explicit list of AccountIDs. Queries in chunks
    * (OR-ed equality) so a long pasted list never produces an over-long URL.
    */
-  async findAccountsByIDs(ids, { chunkSize = 30 } = {}) {
+  async findAccountsByIDs(ids, { chunkSize = 10 } = {}) {
     if (!ids?.length) return [];
     const c4c = await this.connect();
     const { CorporateAccountCollection } = c4c.entities;
@@ -112,7 +112,7 @@ class C4CClient {
   }
 
   /** Fetch full account records for a list of ObjectIDs (chunked OR queries). */
-  async findAccountsByObjectIDs(objectIDs, { chunkSize = 30 } = {}) {
+  async findAccountsByObjectIDs(objectIDs, { chunkSize = 10 } = {}) {
     if (!objectIDs?.length) return [];
     const c4c = await this.connect();
     const { CorporateAccountCollection } = c4c.entities;

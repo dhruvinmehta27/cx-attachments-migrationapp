@@ -32,6 +32,8 @@
       "C4C_ODATA": {
         "kind": "odata-v2",
         "model": "srv/external/C4C_ODATA",
+        "csrf": true,
+        "csrfInBatch": true,
         "[development]": {
           "credentials": { "url": "https://my332854.crm.ondemand.com/sap/c4c/odata/v1/c4codataapi" }
         },
