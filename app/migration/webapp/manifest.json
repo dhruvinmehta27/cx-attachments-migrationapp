@@ -87,6 +87,19 @@
               "initialLoad": "Enabled",
               "navigation": {
                 "Accounts": { "detail": { "route": "AccountObjectPage" } }
+              },
+              "controlConfiguration": {
+                "@com.sap.vocabularies.UI.v1.LineItem": {
+                  "tableSettings": { "selectionMode": "Multi" },
+                  "actions": {
+                    "downloadSelected": {
+                      "press": "cx.migration.attachments.ext.DownloadSelected.onDownloadSelected",
+                      "text": "Download Selected (ZIP)",
+                      "enabled": true,
+                      "requiresSelection": true
+                    }
+                  }
+                }
               }
             }
           }

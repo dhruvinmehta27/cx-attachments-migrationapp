@@ -65,6 +65,25 @@ cds.on('bootstrap', (app) => {
     }
   });
 
+  // Download a hand-picked set of accounts (multi-select), foldered by Account ID.
+  // ?ids=<ObjectID>,<ObjectID>,...  (also accepts repeated ?id= params)
+  app.get('/migration/download/accounts', async (req, res) => {
+    try {
+      const raw = [].concat(req.query.ids || [], req.query.id || []).join(',');
+      const objectIDs = raw.split(',').map(s => s.trim()).filter(Boolean);
+      if (!objectIDs.length) return res.status(400).send('No accounts selected.');
+      const accounts = await c4c.findAccountsByObjectIDs(objectIDs);
+      if (!accounts.length) return res.status(404).send('Selected accounts not found in C4C.');
+      const name = accounts.length === 1
+        ? (accounts[0].AccountID?.trim() || 'account')
+        : `selected_${accounts.length}_accounts`;
+      await streamAccountsZip(res, accounts, name);
+    } catch (e) {
+      cds.log('download').error(e);
+      if (!res.headersSent) res.status(502).send(`Download failed: ${e.message}`);
+    }
+  });
+
   // Download all attachments for a saved query, one folder per account.
   app.get('/migration/download/query/:id', async (req, res) => {
     try {
