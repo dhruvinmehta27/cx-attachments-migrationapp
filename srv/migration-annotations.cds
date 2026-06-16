@@ -7,6 +7,11 @@ annotate MigrationService.Accounts with @(
   UI: {
     SelectionFields: [ accountID, name, city, country ],
     LineItem: [
+      {
+        $Type: 'UI.DataFieldForAction',
+        Action: 'MigrationService.migrateAttachments',
+        Label: 'Migrate Attachments'
+      },
       { Value: accountID, Label: 'Account ID' },
       { Value: name,      Label: 'Name' },
       { Value: role,      Label: 'Role' },
@@ -71,7 +76,8 @@ annotate MigrationService.Accounts with {
 annotate MigrationService.Attachments with @(
   UI: {
     LineItem: [
-      { Value: fileName, Label: 'File Name' },
+      // File name is a link that opens / downloads the document content.
+      { $Type: 'UI.DataFieldWithUrl', Value: fileName, Url: downloadUrl, Label: 'File Name' },
       { Value: documentType, Label: 'Document Type' },
       { Value: mimeType, Label: 'Type' },
       { Value: fileSizeKB, Label: 'Size (kB)' },
@@ -94,6 +100,9 @@ annotate MigrationService.Attachments with {
   documentType @title: 'Document Type';
   createdAt    @title: 'Created On';
   createdBy    @title: 'Created By';
+  content      @Core.MediaType: mimeType
+               @Core.ContentDisposition.Filename: fileName
+               @Core.ContentDisposition.Type: 'inline';
 };
 
 // =====================================================================

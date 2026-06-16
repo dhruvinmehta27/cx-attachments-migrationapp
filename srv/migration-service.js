@@ -1,4 +1,5 @@
 const cds = require('@sap/cds');
+const { Readable } = require('stream');
 const c4c = require('./lib/c4c-client');
 const target = require('./lib/target-client');
 
@@ -28,7 +29,9 @@ function toAttachment(r) {
     documentType: r.TypeCodeText,
     documentLink: r.DocumentLink,
     createdAt: parseC4CDate(r.CreatedOn),
-    createdBy: r.CreatedBy
+    createdBy: r.CreatedBy,
+    // Link the Fiori file-name cell to the streamed content of this attachment.
+    downloadUrl: `/migration/Accounts('${r.ParentObjectID}')/attachments('${r.ObjectID}')/content`
   };
 }
 
@@ -69,23 +72,37 @@ module.exports = class MigrationService extends cds.ApplicationService {
       }
       // Two path keys => /Accounts(<id>)/attachments(<attId>) (single attachment).
       const single = (req.params?.length ?? 0) >= 2;
+
+      // Media stream request: /Accounts(<id>)/attachments(<attId>)/content
+      const cols = req.query?.SELECT?.columns;
+      const wantsContent = Array.isArray(cols) && cols.some(c => c.ref?.at(-1) === 'content');
+      if (wantsContent && single) {
+        const att = await c4c.getAttachment(accountObjectID, req.params.at(-1).ID, { includeBinary: true });
+        if (!att) return req.reject(404, 'Attachment not found in C4C.');
+        return {
+          value: Readable.from(c4c.decodeBinary(att.Binary)),
+          $mediaContentType: att.MimeType || 'application/octet-stream',
+          $mediaContentDispositionFilename: att.Name,
+          $mediaContentDispositionType: 'inline'
+        };
+      }
+
       const onlyIDs = single ? [req.params.at(-1).ID] : undefined;
       const rows = await c4c.listAttachments(accountObjectID, { onlyIDs });
       const mapped = rows.map(toAttachment);
       return single ? (mapped[0] ?? null) : mapped;
     });
 
-    // Bound action on Accounts: migrate all / selected attachments of an account.
+    // Bound action on Accounts: migrate ALL attachments of the account.
+    // Invoked per selected account when run from the list report.
     this.on('migrateAttachments', 'Accounts', async (req) => {
       const accountObjectID = req.params.at(-1)?.ID || req.params.at(-1);
-      const { targetEndpoint, attachmentIDs } = req.data;
+      const { targetEndpoint } = req.data;
 
       const account = await c4c.getAccount(accountObjectID);
       if (!account) return req.error(404, `Account ${accountObjectID} not found in C4C.`);
 
-      const attachments = await c4c.listAttachments(accountObjectID, {
-        onlyIDs: attachmentIDs, includeBinary: true
-      });
+      const attachments = await c4c.listAttachments(accountObjectID, { includeBinary: true });
       if (!attachments.length) return req.error(400, 'No attachments found to migrate.');
 
       return this._runMigration(req, {

@@ -24,10 +24,10 @@ service MigrationService @(path: '/migration', requires: 'authenticated-user') {
         EntityLastChangedOn as changedAt,
         CorporateAccountAttachmentFolder as attachments : redirected to Attachments
   } actions {
-    /** Migrate all (or the given) attachments of this account to the target endpoint. */
+    /** Migrate all attachments of this account to the target endpoint.
+        Works on multiple selected accounts from the list report. */
     action migrateAttachments(
-      targetEndpoint : String(1024) @title: 'Target Endpoint' @mandatory,
-      attachmentIDs  : many String(70)
+      targetEndpoint : String(1024) @title: 'Target Endpoint' @mandatory
     ) returns MigrationJobs;
   };
 
@@ -43,7 +43,9 @@ service MigrationService @(path: '/migration', requires: 'authenticated-user') {
         TypeCodeText   as documentType,
         DocumentLink   as documentLink,
         CreatedOn      as createdAt,
-        CreatedBy      as createdBy
+        CreatedBy      as createdBy,
+        Binary         as content,            // streamed on demand (media)
+        null           as downloadUrl : String(2048)
   } actions {
     /** Migrate this single attachment (supports multi-select in tables). */
     action migrate(
