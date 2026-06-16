@@ -8,6 +8,7 @@
     <style>
       html, body, #content {
         height: 100%;
+        width: 100%;
         margin: 0;
         padding: 0;
       }
@@ -17,19 +18,25 @@
       src="https://ui5.sap.com/resources/sap-ui-core.js"
       data-sap-ui-theme="sap_horizon"
       data-sap-ui-resourceroots='{ "cx.migration.jobs": "./" }'
-      data-sap-ui-oninit="module:sap/ui/core/ComponentSupport"
+      data-sap-ui-libs="sap.m, sap.fe.templates"
       data-sap-ui-compatVersion="edge"
       data-sap-ui-async="true"
       data-sap-ui-frameOptions="trusted"
     ></script>
+    <script>
+      sap.ui.getCore().attachInit(function () {
+        sap.ui.require(["sap/ui/core/ComponentContainer"], function (ComponentContainer) {
+          new ComponentContainer({
+            name: "cx.migration.jobs",
+            height: "100%",
+            width: "100%",
+            async: true,
+            manifest: true,
+            settings: { id: "cx.migration.jobs" }
+          }).placeAt("content");
+        });
+      });
+    </script>
   </head>
-  <body class="sapUiBody" id="content">
-    <div
-      data-sap-ui-component
-      data-name="cx.migration.jobs"
-      data-id="container"
-      data-settings='{ "id": "cx.migration.jobs" }'
-      data-height="100%"
-    ></div>
-  </body>
+  <body class="sapUiBody" id="content"></body>
 </html>
