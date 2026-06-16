@@ -59,6 +59,10 @@ modules:
             - jobs.zip
           name: jobsapp
           target-path: resources/
+        - artifacts:
+            - queries.zip
+          name: queriesapp
+          target-path: resources/
 
   - name: migrationapp
     type: html5
@@ -74,6 +78,17 @@ modules:
   - name: jobsapp
     type: html5
     path: app/jobs
+    build-parameters:
+      build-result: dist
+      builder: custom
+      commands:
+        - npm install
+        - npm run build:cf
+      supported-platforms: []
+
+  - name: queriesapp
+    type: html5
+    path: app/queries
     build-parameters:
       build-result: dist
       builder: custom

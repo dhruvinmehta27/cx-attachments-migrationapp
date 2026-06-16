@@ -53,6 +53,11 @@ service MigrationService @(path: '/migration', requires: 'authenticated-user') {
     ) returns MigrationItems;
   };
 
+  // ---- Saved account queries (create / save / organize) ---------------
+
+  @odata.draft.enabled
+  entity SavedQueries as projection on db.SavedQueries;
+
   // ---- Audit log: persisted migration jobs ----------------------------
 
   @readonly

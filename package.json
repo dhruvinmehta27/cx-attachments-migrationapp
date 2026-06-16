@@ -52,7 +52,8 @@
   },
   "sapux": [
     "app/migration",
-    "app/jobs"
+    "app/jobs",
+    "app/queries"
   ],
   "private": true
 }

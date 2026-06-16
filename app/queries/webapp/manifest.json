@@ -1,0 +1,82 @@
+{
+  "_version": "1.59.0",
+  "sap.app": {
+    "id": "cx.migration.queries",
+    "type": "application",
+    "title": "{{appTitle}}",
+    "description": "{{appDescription}}",
+    "i18n": "i18n/i18n.properties",
+    "applicationVersion": { "version": "1.0.0" },
+    "dataSources": {
+      "mainService": {
+        "uri": "/migration/",
+        "type": "OData",
+        "settings": {
+          "odataVersion": "4.0",
+          "localUri": "localService/metadata.xml"
+        }
+      }
+    }
+  },
+  "sap.ui": {
+    "technology": "UI5",
+    "icons": { "icon": "sap-icon://filter" },
+    "deviceTypes": { "desktop": true, "tablet": true, "phone": true }
+  },
+  "sap.ui5": {
+    "flexEnabled": true,
+    "dependencies": {
+      "minUI5Version": "1.120.0",
+      "libs": {
+        "sap.m": {},
+        "sap.ui.core": {},
+        "sap.fe.templates": {}
+      }
+    },
+    "models": {
+      "i18n": {
+        "type": "sap.ui.model.resource.ResourceModel",
+        "settings": { "bundleName": "cx.migration.queries.i18n.i18n" }
+      },
+      "": {
+        "dataSource": "mainService",
+        "preload": true,
+        "settings": {
+          "operationMode": "Server",
+          "autoExpandSelect": true,
+          "earlyRequests": true
+        }
+      }
+    },
+    "routing": {
+      "routes": [
+        { "pattern": ":?query:", "name": "QueriesList", "target": "QueriesList" },
+        { "pattern": "SavedQueries({key}):?query:", "name": "QueryObjectPage", "target": "QueryObjectPage" }
+      ],
+      "targets": {
+        "QueriesList": {
+          "type": "Component",
+          "id": "QueriesList",
+          "name": "sap.fe.templates.ListReport",
+          "options": {
+            "settings": {
+              "contextPath": "/SavedQueries",
+              "variantManagement": "Page",
+              "initialLoad": "Enabled",
+              "navigation": {
+                "SavedQueries": { "detail": { "route": "QueryObjectPage" } }
+              }
+            }
+          }
+        },
+        "QueryObjectPage": {
+          "type": "Component",
+          "id": "QueryObjectPage",
+          "name": "sap.fe.templates.ObjectPage",
+          "options": { "settings": { "contextPath": "/SavedQueries" } }
+        }
+      }
+    }
+  },
+  "sap.fiori": { "registrationIds": [], "archeType": "transactional" }
+}

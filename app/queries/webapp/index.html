@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Saved Queries</title>
+    <style>
+      html, body, #content {
+        height: 100%;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+      }
+    </style>
+    <script
+      id="sap-ui-bootstrap"
+      src="https://ui5.sap.com/resources/sap-ui-core.js"
+      data-sap-ui-theme="sap_horizon"
+      data-sap-ui-resourceroots='{ "cx.migration.queries": "./" }'
+      data-sap-ui-libs="sap.m, sap.fe.templates"
+      data-sap-ui-compatVersion="edge"
+      data-sap-ui-async="true"
+      data-sap-ui-frameOptions="trusted"
+    ></script>
+    <script>
+      sap.ui.getCore().attachInit(function () {
+        sap.ui.require(["sap/ui/core/ComponentContainer"], function (ComponentContainer) {
+          new ComponentContainer({
+            name: "cx.migration.queries",
+            height: "100%",
+            width: "100%",
+            async: true,
+            manifest: true,
+            settings: { id: "cx.migration.queries" }
+          }).placeAt("content");
+        });
+      });
+    </script>
+  </head>
+  <body class="sapUiBody" id="content"></body>
+</html>

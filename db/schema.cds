@@ -3,6 +3,24 @@ namespace cx.migration;
 using { cuid, managed } from '@sap/cds/common';
 
 /**
+ * A reusable, user-defined query over C4C accounts: a named set of account
+ * filter criteria that can be created, saved and organised (favourite + tag).
+ */
+entity SavedQueries : cuid, managed {
+  queryName       : String(100) @mandatory @title: 'Query Name';
+  description     : String(500) @title: 'Description';
+  isFavorite      : Boolean default false @title: 'Favorite';
+  tag             : String(60)  @title: 'Tag';
+  // Account filter criteria (all optional).
+  filterAccountID : String(60)  @title: 'Account ID';
+  filterName      : String(255) @title: 'Name';
+  filterCity      : String(60)  @title: 'City';
+  filterCountry   : String(3)   @title: 'Country';
+  filterRole      : String(60)  @title: 'Role';
+  filterStatus    : String(10)  @title: 'Life Cycle Status';
+}
+
+/**
  * A migration job groups one or more attachments (belonging to a single
  * SAP C4C account) that are migrated to a configurable target endpoint.
  * It is the system-of-record for what was migrated, when, and with which result.

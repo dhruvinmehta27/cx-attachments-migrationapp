@@ -169,3 +169,77 @@ annotate MigrationService.MigrationItems with @(
     ]
   }
 );
+
+// =====================================================================
+//  Saved Queries - create / save / organize account filter queries
+// =====================================================================
+annotate MigrationService.SavedQueries with @(
+  UI: {
+    SelectionFields: [ queryName, tag, isFavorite ],
+    PresentationVariant: {
+      SortOrder: [
+        { Property: isFavorite, Descending: true },
+        { Property: queryName,  Descending: false }
+      ]
+    },
+    LineItem: [
+      { Value: isFavorite, Label: 'Favorite' },
+      { Value: queryName,  Label: 'Query Name' },
+      { Value: tag,        Label: 'Tag' },
+      { Value: description, Label: 'Description' },
+      { Value: createdBy,  Label: 'Created By' },
+      { Value: createdAt,  Label: 'Created On' }
+    ],
+    HeaderInfo: {
+      TypeName: 'Saved Query',
+      TypeNamePlural: 'Saved Queries',
+      Title: { Value: queryName },
+      Description: { Value: tag }
+    },
+    Facets: [
+      {
+        $Type: 'UI.ReferenceFacet',
+        ID: 'General',
+        Label: 'General',
+        Target: '@UI.FieldGroup#General'
+      },
+      {
+        $Type: 'UI.ReferenceFacet',
+        ID: 'Filters',
+        Label: 'Account Filter Criteria',
+        Target: '@UI.FieldGroup#Filters'
+      }
+    ],
+    FieldGroup#General: {
+      Data: [
+        { Value: queryName },
+        { Value: description },
+        { Value: tag },
+        { Value: isFavorite }
+      ]
+    },
+    FieldGroup#Filters: {
+      Data: [
+        { Value: filterAccountID },
+        { Value: filterName },
+        { Value: filterCity },
+        { Value: filterCountry },
+        { Value: filterRole },
+        { Value: filterStatus }
+      ]
+    }
+  }
+);
+
+annotate MigrationService.SavedQueries with {
+  queryName       @title: 'Query Name';
+  description     @title: 'Description';
+  isFavorite      @title: 'Favorite';
+  tag             @title: 'Tag';
+  filterAccountID @title: 'Account ID';
+  filterName      @title: 'Name';
+  filterCity      @title: 'City';
+  filterCountry   @title: 'Country';
+  filterRole      @title: 'Role';
+  filterStatus    @title: 'Life Cycle Status';
+};

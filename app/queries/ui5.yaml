@@ -1,0 +1,19 @@
+specVersion: "3.0"
+metadata:
+  name: cx.migration.queries
+type: application
+framework:
+  name: SAPUI5
+  version: "1.120.0"
+  libraries:
+    - name: sap.m
+    - name: sap.ui.core
+    - name: sap.fe.templates
+builder:
+  customTasks:
+    - name: ui5-task-zipper
+      afterTask: generateCachebusterInfo
+      configuration:
+        archiveName: queries
+        additionalFiles:
+          - xs-app.json
