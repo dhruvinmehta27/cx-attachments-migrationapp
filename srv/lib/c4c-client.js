@@ -78,20 +78,33 @@ class C4CClient {
     if (count) path += '&$inlinecount=allpages';
     const res = await c4c.send({ method: 'GET', path });
     const rows = this._rows(res);
-    const total = count ? Number(res?.d?.__count ?? res?.['@odata.count'] ?? rows.length) : undefined;
+    let total;
+    if (count) {
+      const raw = res?.d?.__count ?? res?.__count ?? res?.['@odata.count'] ?? res?.['odata.count'];
+      total = raw != null ? Number(raw) : undefined;
+    }
     return { rows, total };
   }
 
-  /** One page of account ObjectIDs for a sales org, plus the total count. */
-  async salesOrgAccountPage(salesOrg, { skip = 0, top = 50 } = {}) {
-    const { rows, total } = await this._salesDataPage(salesOrg, { skip, top, count: true });
-    return { parentIDs: rows.map(r => r.ParentObjectID).filter(Boolean), count: total };
+  /** One page of account ObjectIDs for a sales org (+ total count when asked). */
+  async salesOrgAccountPage(salesOrg, { skip = 0, top = 50, withCount = true } = {}) {
+    const { rows, total } = await this._salesDataPage(salesOrg, { skip, top, count: withCount });
+    let count = total;
+    if (withCount && !Number.isFinite(count)) count = await this.countAccountsBySalesOrg(salesOrg);
+    return { parentIDs: rows.map(r => r.ParentObjectID).filter(Boolean), count };
   }
 
-  /** Total number of accounts in a sales org (single round-trip). */
-  async countAccountsBySalesOrg(salesOrg) {
+  /** Total accounts in a sales org: $inlinecount if available, else paged count. */
+  async countAccountsBySalesOrg(salesOrg, { pageSize = 1000, max = 500000 } = {}) {
     const { total } = await this._salesDataPage(salesOrg, { skip: 0, top: 1, count: true });
-    return total ?? 0;
+    if (Number.isFinite(total)) return total;
+    let n = 0;
+    for (let skip = 0; ; skip += pageSize) {
+      const { rows } = await this._salesDataPage(salesOrg, { skip, top: pageSize });
+      n += rows.length;
+      if (rows.length < pageSize || n >= max) break;
+    }
+    return n;
   }
 
   /**

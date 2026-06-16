@@ -134,9 +134,10 @@ module.exports = class MigrationService extends cds.ApplicationService {
         // Fetch only the requested page of accounts in this sales org.
         const offset = req.query.SELECT?.limit?.offset?.val ?? 0;
         const top = req.query.SELECT?.limit?.rows?.val ?? 50;
-        const { parentIDs, count } = await c4c.salesOrgAccountPage(salesOrg, { skip: offset, top });
+        const wantCount = !!req.query.SELECT?.count;
+        const { parentIDs, count } = await c4c.salesOrgAccountPage(salesOrg, { skip: offset, top, withCount: wantCount });
         const rows = parentIDs.length ? (await c4c.findAccountsByObjectIDs(parentIDs)).map(toAccount) : [];
-        rows.$count = count ?? rows.length;   // let the list report page correctly
+        if (wantCount && Number.isFinite(count)) rows.$count = count;  // let the list report page correctly
         return rows;
       }
       const C4C = await cds.connect.to('C4C_ODATA');
