@@ -17,7 +17,8 @@ annotate MigrationService.Accounts with @(
       { Value: role,      Label: 'Role' },
       { Value: city,      Label: 'City' },
       { Value: country,   Label: 'Country' },
-      { Value: lifeCycleStatus, Label: 'Status' }
+      { Value: lifeCycleStatus, Label: 'Status' },
+      { $Type: 'UI.DataFieldWithUrl', Value: downloadLabel, Url: downloadUrl, Label: 'Download' }
     ],
     HeaderInfo: {
       TypeName: 'Account',
@@ -199,6 +200,7 @@ annotate MigrationService.SavedQueries with @(
       { Value: queryName,  Label: 'Query Name' },
       { Value: tag,        Label: 'Tag' },
       { Value: description, Label: 'Description' },
+      { $Type: 'UI.DataFieldWithUrl', Value: downloadLabel, Url: downloadUrl, Label: 'Download' },
       { Value: createdBy,  Label: 'Created By' },
       { Value: createdAt,  Label: 'Created On' }
     ],
