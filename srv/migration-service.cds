@@ -25,7 +25,7 @@ service MigrationService @(path: '/migration', requires: 'authenticated-user') {
         // Virtual filter only (resolved via the sales-data collection); never read from C4C.
         null                as salesOrg : String(40),
         null                as downloadUrl : String(2048),  // link to the per-account zip
-        'Download attachments (ZIP)' as downloadLabel : String(40),
+        null                as downloadLabel : String(60),  // visible link text (set in handler)
         CorporateAccountAttachmentFolder as attachments : redirected to Attachments
   } actions {
     /** Migrate all attachments of this account to the target endpoint.
@@ -63,7 +63,7 @@ service MigrationService @(path: '/migration', requires: 'authenticated-user') {
   entity SavedQueries as projection on db.SavedQueries {
     *,
     null as downloadUrl : String(2048),  // link to the per-query zip (folder per account)
-    'Download (ZIP, folder per account)' as downloadLabel : String(60)
+    null as downloadLabel : String(60)   // visible link text (set in handler)
   } actions {
     /** How many C4C accounts currently match this query's filter. */
     function previewCount() returns Integer;

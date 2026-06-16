@@ -31,7 +31,8 @@ function toAccount(r) {
     country: r.CountryCode,
     changedAt: parseC4CDate(r.EntityLastChangedOn),
     salesOrg: null,
-    downloadUrl: r.ObjectID ? `/migration/download/account/${r.ObjectID}` : null
+    downloadUrl: r.ObjectID ? `/migration/download/account/${r.ObjectID}` : null,
+    downloadLabel: 'Download attachments (ZIP)'
   };
 }
 
@@ -91,15 +92,19 @@ function parentAccountID(req) {
 
 module.exports = class MigrationService extends cds.ApplicationService {
   async init() {
-    // Populate the per-account / per-query download links.
+    // Populate the per-account / per-query download links (URL + visible text).
     this.after('READ', 'Accounts', (rows) => {
       for (const r of [].concat(rows || [])) {
-        if (r?.ID && !r.downloadUrl) r.downloadUrl = `/migration/download/account/${r.ID}`;
+        if (!r?.ID) continue;
+        r.downloadUrl = `/migration/download/account/${r.ID}`;
+        r.downloadLabel = 'Download attachments (ZIP)';
       }
     });
     this.after('READ', 'SavedQueries', (rows) => {
       for (const r of [].concat(rows || [])) {
-        if (r?.ID) r.downloadUrl = `/migration/download/query/${r.ID}`;
+        if (!r?.ID) continue;
+        r.downloadUrl = `/migration/download/query/${r.ID}`;
+        r.downloadLabel = 'Download (ZIP, folder per account)';
       }
     });
 
