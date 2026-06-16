@@ -188,6 +188,38 @@ class C4CClient {
     return row || null;
   }
 
+  /**
+   * Delete a single attachment in C4C. CSRF handling (fetch token + retry) is
+   * done automatically by the odata-v2 client because `csrf: true` is set on
+   * the C4C_ODATA destination.
+   */
+  async deleteAttachment(attachmentObjectID) {
+    const c4c = await this.connect();
+    const { CorporateAccountAttachmentFolderCollection } = c4c.entities;
+    await c4c.run(DELETE.from(CorporateAccountAttachmentFolderCollection).where({ ObjectID: attachmentObjectID }));
+    return true;
+  }
+
+  /**
+   * Delete every attachment of an account (post-migration cleanup).
+   * Deletes sequentially and keeps going on individual failures.
+   * @returns {Promise<{total:number, deleted:number, failed:number, errors:string[]}>}
+   */
+  async deleteAllAttachments(accountObjectID) {
+    const rows = await this.listAttachments(accountObjectID);
+    let deleted = 0;
+    const errors = [];
+    for (const r of rows) {
+      try {
+        await this.deleteAttachment(r.ObjectID);
+        deleted++;
+      } catch (e) {
+        errors.push(`${r.Name || r.ObjectID}: ${e.message}`);
+      }
+    }
+    return { total: rows.length, deleted, failed: errors.length, errors };
+  }
+
   /** Decode a C4C base64 Binary value into a Buffer. */
   decodeBinary(binary) {
     if (binary == null) return Buffer.alloc(0);

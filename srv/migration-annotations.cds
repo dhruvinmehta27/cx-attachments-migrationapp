@@ -37,6 +37,11 @@ annotate MigrationService.Accounts with @(
         $Type: 'UI.DataFieldForAction',
         Action: 'MigrationService.migrateAttachments',
         Label: 'Migrate Attachments'
+      },
+      {
+        $Type: 'UI.DataFieldForAction',
+        Action: 'MigrationService.deleteAllAttachments',
+        Label: 'Delete All Attachments'
       }
     ],
     Facets: [
@@ -96,10 +101,29 @@ annotate MigrationService.Attachments with @(
         $Type: 'UI.DataFieldForAction',
         Action: 'MigrationService.migrate',
         Label: 'Migrate'
+      },
+      {
+        $Type: 'UI.DataFieldForAction',
+        Action: 'MigrationService.deleteAttachment',
+        Label: 'Delete',
+        Inline: true,
+        IconUrl: 'sap-icon://delete'
       }
     ]
   }
 );
+
+// Destructive C4C deletes ask for confirmation before running, and refresh
+// the account's attachment list once done.
+annotate MigrationService.Accounts actions {
+  deleteAllAttachments @(
+    Common.IsActionCritical: true,
+    Common.SideEffects     : { TargetEntities: [attachments] }
+  );
+};
+annotate MigrationService.Attachments actions {
+  deleteAttachment @(Common.IsActionCritical: true);
+};
 
 annotate MigrationService.Attachments with {
   fileName     @title: 'File Name';

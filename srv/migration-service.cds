@@ -33,6 +33,8 @@ service MigrationService @(path: '/migration', requires: 'authenticated-user') {
     action migrateAttachments(
       targetEndpoint : String(1024) @title: 'Target Endpoint' @mandatory
     ) returns MigrationJobs;
+    /** Delete ALL attachments of this account in C4C (post-migration cleanup). */
+    action deleteAllAttachments() returns String;
   };
 
   @readonly
@@ -55,6 +57,8 @@ service MigrationService @(path: '/migration', requires: 'authenticated-user') {
     action migrate(
       targetEndpoint : String(1024) @title: 'Target Endpoint' @mandatory
     ) returns MigrationItems;
+    /** Delete this attachment from C4C (post-migration cleanup). */
+    action deleteAttachment() returns Boolean;
   };
 
   // ---- Saved account queries (create / save / organize) ---------------

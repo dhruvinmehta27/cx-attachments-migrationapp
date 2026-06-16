@@ -227,6 +227,39 @@ module.exports = class MigrationService extends cds.ApplicationService {
       return item;
     });
 
+    // Bound action on Accounts: delete ALL attachments of the account in C4C.
+    this.on('deleteAllAttachments', 'Accounts', async (req) => {
+      const accountObjectID = req.params.at(-1)?.ID || req.params.at(-1);
+      const account = await c4c.getAccount(accountObjectID);
+      if (!account) return req.error(404, `Account ${accountObjectID} not found in C4C.`);
+
+      const res = await c4c.deleteAllAttachments(accountObjectID);
+      if (res.total === 0) {
+        req.info('No attachments to delete.');
+        return 'No attachments to delete.';
+      }
+      if (res.failed) {
+        const msg = `Deleted ${res.deleted} of ${res.total}; ${res.failed} failed.`;
+        req.warn(`${msg} ${res.errors.slice(0, 3).join('; ')}`);
+        return msg;
+      }
+      const msg = `Deleted all ${res.deleted} attachment(s) from C4C.`;
+      req.info(msg);
+      return msg;
+    });
+
+    // Bound action on Attachments: delete a single (multi-selected) attachment in C4C.
+    this.on('deleteAttachment', 'Attachments', async (req) => {
+      const attachmentObjectID = req.params.at(-1)?.ID || req.params.at(-1);
+      try {
+        await c4c.deleteAttachment(attachmentObjectID);
+      } catch (e) {
+        return req.error(502, `Delete failed: ${e.message}`);
+      }
+      req.info('Attachment deleted from C4C.');
+      return true;
+    });
+
     // Saved query: how many accounts currently match (ID list or filter).
     this.on('previewCount', 'SavedQueries', async (req) => {
       const q = await cds.run(SELECT.one.from(DB_QUERIES).where({ ID: req.params.at(-1).ID }));
