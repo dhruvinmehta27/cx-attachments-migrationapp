@@ -9,6 +9,7 @@
     "@sap-cloud-sdk/connectivity": "^4",
     "@sap-cloud-sdk/http-client": "^4",
     "@sap-cloud-sdk/resilience": "^4",
+    "archiver": "^7",
     "express": "^4"
   },
   "devDependencies": {

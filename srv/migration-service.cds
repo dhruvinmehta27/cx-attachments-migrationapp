@@ -24,6 +24,8 @@ service MigrationService @(path: '/migration', requires: 'authenticated-user') {
         EntityLastChangedOn as changedAt,
         // Virtual filter only (resolved via the sales-data collection); never read from C4C.
         null                as salesOrg : String(40),
+        null                as downloadUrl : String(2048),  // link to the per-account zip
+        'Download attachments (ZIP)' as downloadLabel : String(40),
         CorporateAccountAttachmentFolder as attachments : redirected to Attachments
   } actions {
     /** Migrate all attachments of this account to the target endpoint.
@@ -58,7 +60,11 @@ service MigrationService @(path: '/migration', requires: 'authenticated-user') {
   // ---- Saved account queries (create / save / organize) ---------------
 
   @odata.draft.enabled
-  entity SavedQueries as projection on db.SavedQueries actions {
+  entity SavedQueries as projection on db.SavedQueries {
+    *,
+    null as downloadUrl : String(2048),  // link to the per-query zip (folder per account)
+    'Download (ZIP, folder per account)' as downloadLabel : String(60)
+  } actions {
     /** How many C4C accounts currently match this query's filter. */
     function previewCount() returns Integer;
     /** Migrate the attachments of every account matching this query to the

@@ -27,6 +27,12 @@ annotate MigrationService.Accounts with @(
     },
     Identification: [
       {
+        $Type: 'UI.DataFieldWithUrl',
+        Value: downloadLabel,
+        Url: downloadUrl,
+        Label: 'Download'
+      },
+      {
         $Type: 'UI.DataFieldForAction',
         Action: 'MigrationService.migrateAttachments',
         Label: 'Migrate Attachments'
@@ -201,6 +207,12 @@ annotate MigrationService.SavedQueries with @(
         $Type: 'UI.DataFieldForAction',
         Action: 'MigrationService.previewCount',
         Label: 'Preview Matching Accounts'
+      },
+      {
+        $Type: 'UI.DataFieldWithUrl',
+        Value: downloadLabel,
+        Url: downloadUrl,
+        Label: 'Download'
       },
       {
         $Type: 'UI.DataFieldForAction',

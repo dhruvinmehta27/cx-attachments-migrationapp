@@ -2,47 +2,13 @@ const cds = require('@sap/cds');
 const { Readable } = require('stream');
 const c4c = require('./lib/c4c-client');
 const target = require('./lib/target-client');
+const { parseAccountIDs, buildAccountFilter, resolveAccountList } = require('./lib/query-accounts');
 
 // Persistence-level entities (not the @readonly service projections), so they
 // can be written from within the action handlers.
 const DB_JOBS = 'cx.migration.MigrationJobs';
 const DB_ITEMS = 'cx.migration.MigrationItems';
 const DB_QUERIES = 'cx.migration.SavedQueries';
-
-/** Parse a pasted list of account IDs ("=28413 ; =106304 ; 95836") into a clean array. */
-function parseAccountIDs(text) {
-  if (!text) return [];
-  return [...new Set(
-    String(text)
-      .split(/[;,\s]+/)
-      .map(s => s.trim().replace(/^=+/, '').trim())
-      .filter(Boolean)
-  )];
-}
-
-/** Build a C4C account equality filter from a saved query's criteria. */
-function buildAccountFilter(q) {
-  const w = {};
-  if (q.filterName)    w.Name = q.filterName;
-  if (q.filterCity)    w.City = q.filterCity;
-  if (q.filterCountry) w.CountryCode = q.filterCountry;
-  if (q.filterRole)    w.RoleCodeText = q.filterRole;
-  if (q.filterStatus)  w.LifeCycleStatusCode = q.filterStatus;
-  return w;
-}
-
-/**
- * Resolve the explicit account list a query targets, in precedence order:
- * pasted Account IDs, then Sales Organization. Returns null when neither is
- * set, in which case the caller pages through the equality filter instead.
- */
-async function resolveAccountList(q) {
-  const ids = parseAccountIDs(q.filterAccountIDs);
-  if (ids.length) return c4c.findAccountsByIDs(ids);
-  if (q.filterSalesOrg) return c4c.findAccountsBySalesOrg(q.filterSalesOrg);
-  return null;
-}
-
 
 /** Convert a C4C OData v2 date ("/Date(ms[+offset])/") into an ISO timestamp. */
 function parseC4CDate(v) {
@@ -64,7 +30,8 @@ function toAccount(r) {
     city: r.City,
     country: r.CountryCode,
     changedAt: parseC4CDate(r.EntityLastChangedOn),
-    salesOrg: null
+    salesOrg: null,
+    downloadUrl: r.ObjectID ? `/migration/download/account/${r.ObjectID}` : null
   };
 }
 
@@ -124,6 +91,18 @@ function parentAccountID(req) {
 
 module.exports = class MigrationService extends cds.ApplicationService {
   async init() {
+    // Populate the per-account / per-query download links.
+    this.after('READ', 'Accounts', (rows) => {
+      for (const r of [].concat(rows || [])) {
+        if (r?.ID && !r.downloadUrl) r.downloadUrl = `/migration/download/account/${r.ID}`;
+      }
+    });
+    this.after('READ', 'SavedQueries', (rows) => {
+      for (const r of [].concat(rows || [])) {
+        if (r?.ID) r.downloadUrl = `/migration/download/query/${r.ID}`;
+      }
+    });
+
     // ---- Reads of the remote (C4C) entities ---------------------------
     // Accounts come straight from the C4C account collection, except when the
     // virtual Sales Organization filter is used - then we resolve the matching
