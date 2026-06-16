@@ -65,6 +65,30 @@ class C4CClient {
     return [...out.values()];
   }
 
+  /**
+   * Resolve accounts belonging to a sales organization, via the sales-data
+   * collection (ParentObjectID points back to the account).
+   */
+  async findAccountsBySalesOrg(salesOrg, { pageSize = 200, max = 100000 } = {}) {
+    if (!salesOrg) return [];
+    const c4c = await this.connect();
+    const { CorporateAccountSalesDataCollection } = c4c.entities;
+    const out = new Map();
+    for (let skip = 0; ; skip += pageSize) {
+      const rows = await c4c.run(
+        SELECT.from(CorporateAccountSalesDataCollection)
+          .columns('ParentObjectID', 'AccountID', 'SalesOrganisationID')
+          .where({ SalesOrganisationID: salesOrg })
+          .limit(pageSize, skip)
+      );
+      for (const r of rows) {
+        if (r.ParentObjectID) out.set(r.ParentObjectID, { ObjectID: r.ParentObjectID, AccountID: r.AccountID });
+      }
+      if (rows.length < pageSize || out.size >= max) break;
+    }
+    return [...out.values()];
+  }
+
   /** Count accounts matching a filter (pages through ObjectIDs only). */
   async countAccounts(filter, { max = 100000, pageSize = 1000 } = {}) {
     let skip = 0, total = 0;

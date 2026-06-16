@@ -43,4 +43,15 @@ service C4C_ODATA {
         CreatedOn       : Timestamp;
         CreatedBy       : String(120);
   }
+
+  /** Sales-area data of a corporate account (used to filter by sales org). */
+  entity CorporateAccountSalesDataCollection {
+    key ObjectID              : String(70);
+        ParentObjectID        : String(70);   // the account's ObjectID
+        AccountID             : String(60);
+        SalesOrganisationID   : String(40);
+        SalesOrganisationName : String(120);
+        DistributionChannelCode : String(10);
+        DivisionCode          : String(10);
+  }
 }

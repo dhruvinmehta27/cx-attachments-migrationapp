@@ -31,6 +31,18 @@ function buildAccountFilter(q) {
   return w;
 }
 
+/**
+ * Resolve the explicit account list a query targets, in precedence order:
+ * pasted Account IDs, then Sales Organization. Returns null when neither is
+ * set, in which case the caller pages through the equality filter instead.
+ */
+async function resolveAccountList(q) {
+  const ids = parseAccountIDs(q.filterAccountIDs);
+  if (ids.length) return c4c.findAccountsByIDs(ids);
+  if (q.filterSalesOrg) return c4c.findAccountsBySalesOrg(q.filterSalesOrg);
+  return null;
+}
+
 
 /** Convert a C4C OData v2 date ("/Date(ms[+offset])/") into an ISO timestamp. */
 function parseC4CDate(v) {
@@ -165,10 +177,8 @@ module.exports = class MigrationService extends cds.ApplicationService {
     this.on('previewCount', 'SavedQueries', async (req) => {
       const q = await cds.run(SELECT.one.from(DB_QUERIES).where({ ID: req.params.at(-1).ID }));
       if (!q) return req.error(404, 'Saved query not found.');
-      const ids = parseAccountIDs(q.filterAccountIDs);
-      const count = ids.length
-        ? (await c4c.findAccountsByIDs(ids)).length
-        : await c4c.countAccounts(buildAccountFilter(q));
+      const list = await resolveAccountList(q);
+      const count = list ? list.length : await c4c.countAccounts(buildAccountFilter(q));
       req.info(`${count} account(s) match this query.`);
       return count;
     });
@@ -252,9 +262,9 @@ module.exports = class MigrationService extends cds.ApplicationService {
       }
     };
 
-    const ids = parseAccountIDs(query.filterAccountIDs);
-    if (ids.length) {
-      await processAccounts(await c4c.findAccountsByIDs(ids));
+    const list = await resolveAccountList(query);
+    if (list) {
+      await processAccounts(list);
     } else {
       const filter = buildAccountFilter(query);
       const pageSize = 50;
