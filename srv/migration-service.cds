@@ -56,7 +56,15 @@ service MigrationService @(path: '/migration', requires: 'authenticated-user') {
   // ---- Saved account queries (create / save / organize) ---------------
 
   @odata.draft.enabled
-  entity SavedQueries as projection on db.SavedQueries;
+  entity SavedQueries as projection on db.SavedQueries actions {
+    /** How many C4C accounts currently match this query's filter. */
+    function previewCount() returns Integer;
+    /** Migrate the attachments of every account matching this query to the
+        target endpoint. Runs in the background; track it in Migration Jobs. */
+    action runMigration(
+      targetEndpoint : String(1024) @title: 'Target Endpoint' @mandatory
+    ) returns MigrationJobs;
+  };
 
   // ---- Audit log: persisted migration jobs ----------------------------
 

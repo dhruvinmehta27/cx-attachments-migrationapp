@@ -24,6 +24,37 @@ class C4CClient {
   }
 
   /**
+   * List accounts matching a filter, one page at a time.
+   * @param {object} [opts]
+   * @param {object} [opts.filter]  CQN-style equality filter (e.g. { CountryCode: 'DE' })
+   * @param {number} [opts.skip]
+   * @param {number} [opts.top]
+   * @param {string[]} [opts.columns]
+   */
+  async listAccounts({ filter, skip = 0, top = 100, columns } = {}) {
+    const c4c = await this.connect();
+    const { CorporateAccountCollection } = c4c.entities;
+    let q = SELECT.from(CorporateAccountCollection).columns(
+      ...(columns || ['ObjectID', 'AccountID', 'Name', 'RoleCodeText', 'LifeCycleStatusCode', 'City', 'CountryCode'])
+    );
+    if (filter && Object.keys(filter).length) q = q.where(filter);
+    q = q.limit(top, skip);
+    return c4c.run(q);
+  }
+
+  /** Count accounts matching a filter (pages through ObjectIDs only). */
+  async countAccounts(filter, { max = 100000, pageSize = 1000 } = {}) {
+    let skip = 0, total = 0;
+    for (;;) {
+      const rows = await this.listAccounts({ filter, skip, top: pageSize, columns: ['ObjectID'] });
+      total += rows.length;
+      if (rows.length < pageSize || total >= max) break;
+      skip += pageSize;
+    }
+    return total;
+  }
+
+  /**
    * List the attachments of an account by navigating from the account.
    * @param {string} accountObjectID  C4C ObjectID of the parent account
    * @param {object} [opts]

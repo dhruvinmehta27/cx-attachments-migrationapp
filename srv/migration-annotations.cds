@@ -183,12 +183,29 @@ annotate MigrationService.SavedQueries with @(
       ]
     },
     LineItem: [
+      {
+        $Type: 'UI.DataFieldForAction',
+        Action: 'MigrationService.runMigration',
+        Label: 'Run Migration'
+      },
       { Value: isFavorite, Label: 'Favorite' },
       { Value: queryName,  Label: 'Query Name' },
       { Value: tag,        Label: 'Tag' },
       { Value: description, Label: 'Description' },
       { Value: createdBy,  Label: 'Created By' },
       { Value: createdAt,  Label: 'Created On' }
+    ],
+    Identification: [
+      {
+        $Type: 'UI.DataFieldForAction',
+        Action: 'MigrationService.previewCount',
+        Label: 'Preview Matching Accounts'
+      },
+      {
+        $Type: 'UI.DataFieldForAction',
+        Action: 'MigrationService.runMigration',
+        Label: 'Run Migration'
+      }
     ],
     HeaderInfo: {
       TypeName: 'Saved Query',

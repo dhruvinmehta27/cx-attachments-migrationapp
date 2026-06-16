@@ -3,9 +3,23 @@ const { Readable } = require('stream');
 const c4c = require('./lib/c4c-client');
 const target = require('./lib/target-client');
 
-// Persistence-level entity (not the @readonly service projection), so the
-// audit log can be written from within the action handlers.
+// Persistence-level entities (not the @readonly service projections), so they
+// can be written from within the action handlers.
 const DB_JOBS = 'cx.migration.MigrationJobs';
+const DB_ITEMS = 'cx.migration.MigrationItems';
+const DB_QUERIES = 'cx.migration.SavedQueries';
+
+/** Build a C4C account equality filter from a saved query's criteria. */
+function buildAccountFilter(q) {
+  const w = {};
+  if (q.filterAccountID) w.AccountID = q.filterAccountID;
+  if (q.filterName)      w.Name = q.filterName;
+  if (q.filterCity)      w.City = q.filterCity;
+  if (q.filterCountry)   w.CountryCode = q.filterCountry;
+  if (q.filterRole)      w.RoleCodeText = q.filterRole;
+  if (q.filterStatus)    w.LifeCycleStatusCode = q.filterStatus;
+  return w;
+}
 
 /** Convert a C4C OData v2 date ("/Date(ms[+offset])/") into an ISO timestamp. */
 function parseC4CDate(v) {
@@ -136,7 +150,105 @@ module.exports = class MigrationService extends cds.ApplicationService {
       return item;
     });
 
+    // Saved query: how many accounts currently match the filter.
+    this.on('previewCount', 'SavedQueries', async (req) => {
+      const q = await cds.run(SELECT.one.from(DB_QUERIES).where({ ID: req.params.at(-1).ID }));
+      if (!q) return req.error(404, 'Saved query not found.');
+      return c4c.countAccounts(buildAccountFilter(q));
+    });
+
+    // Saved query: bulk-migrate attachments of every matching account.
+    this.on('runMigration', 'SavedQueries', async (req) => {
+      const q = await cds.run(SELECT.one.from(DB_QUERIES).where({ ID: req.params.at(-1).ID }));
+      if (!q) return req.error(404, 'Saved query not found.');
+      const { targetEndpoint } = req.data;
+      const filter = buildAccountFilter(q);
+
+      const jobID = cds.utils.uuid();
+      await cds.run(INSERT.into(DB_JOBS).entries({
+        ID: jobID,
+        jobName: `Bulk migrate: ${q.queryName}`,
+        targetEndpoint,
+        status: 'Running',
+        startedAt: new Date().toISOString(),
+        totalCount: 0, successCount: 0, failureCount: 0
+      }));
+
+      // Kick off the long-running migration in the background and return the
+      // job immediately so the user can track progress in Migration Jobs.
+      this._bulkMigrate(jobID, filter, targetEndpoint)
+        .catch(err => cds.log('migration').error('bulk migration failed', err));
+
+      return cds.run(SELECT.one.from(DB_JOBS).where({ ID: jobID }));
+    });
+
     return super.init();
+  }
+
+  /**
+   * Background bulk migration: pages through every account matching the filter,
+   * streams each attachment to the target endpoint, and updates the job counters
+   * and per-file items as it goes. Processed sequentially to bound memory.
+   */
+  async _bulkMigrate(jobID, filter, targetEndpoint) {
+    const pageSize = 50;
+    let skip = 0, total = 0, ok = 0, fail = 0;
+
+    for (;;) {
+      const accounts = await c4c.listAccounts({ filter, skip, top: pageSize });
+      if (!accounts.length) break;
+
+      for (const acc of accounts) {
+        let attachments = [];
+        try {
+          attachments = await c4c.listAttachments(acc.ObjectID, { includeBinary: true });
+        } catch (e) {
+          cds.log('migration').warn(`Account ${acc.AccountID}: cannot read attachments - ${e.message}`);
+          continue;
+        }
+        for (const att of attachments) {
+          total++;
+          const item = {
+            ID: cds.utils.uuid(),
+            job_ID: jobID,
+            attachmentID: att.ObjectID,
+            fileName: att.Name,
+            mimeType: att.MimeType,
+            fileSizeKB: Number(att.SizeInkB) || 0,
+            status: 'Pending'
+          };
+          try {
+            const { ref } = await target.send({
+              targetEndpoint,
+              fileName: att.Name,
+              mimeType: att.MimeType,
+              content: c4c.decodeBinary(att.Binary),
+              metadata: {
+                accountID: acc.AccountID?.trim(), accountName: acc.Name,
+                sourceSystem: 'SAP-C4C', sourceID: att.ObjectID
+              }
+            });
+            item.status = 'Migrated'; item.targetRef = ref; ok++;
+          } catch (e) {
+            item.status = 'Failed'; item.message = e.message; fail++;
+          }
+          await cds.run(INSERT.into(DB_ITEMS).entries(item));
+        }
+        // Update running totals after each account.
+        await cds.run(UPDATE(DB_JOBS).set({ totalCount: total, successCount: ok, failureCount: fail }).where({ ID: jobID }));
+      }
+
+      if (accounts.length < pageSize) break;
+      skip += pageSize;
+    }
+
+    const status = total === 0 ? 'Completed'
+      : fail === 0 ? 'Completed'
+      : ok === 0 ? 'Failed' : 'PartiallyCompleted';
+    await cds.run(UPDATE(DB_JOBS).set({
+      status, finishedAt: new Date().toISOString(),
+      totalCount: total, successCount: ok, failureCount: fail
+    }).where({ ID: jobID }));
   }
 
   /**
