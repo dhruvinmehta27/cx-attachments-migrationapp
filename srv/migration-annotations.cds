@@ -61,7 +61,8 @@ annotate MigrationService.Accounts with @(
         { Value: city,      Label: 'City' },
         { Value: country,   Label: 'Country' },
         { Value: lifeCycleStatus, Label: 'Life Cycle Status' },
-        { Value: changedAt, Label: 'Last Changed' }
+        { Value: changedAt, Label: 'Last Changed' },
+        { $Type: 'UI.DataFieldWithUrl', Value: downloadLabel, Url: downloadUrl, Label: 'Download' }
       ]
     }
   }
@@ -247,7 +248,8 @@ annotate MigrationService.SavedQueries with @(
         { Value: queryName },
         { Value: description },
         { Value: tag },
-        { Value: isFavorite }
+        { Value: isFavorite },
+        { $Type: 'UI.DataFieldWithUrl', Value: downloadLabel, Url: downloadUrl, Label: 'Download' }
       ]
     },
     FieldGroup#Filters: {
