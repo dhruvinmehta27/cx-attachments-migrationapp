@@ -131,14 +131,12 @@ module.exports = class MigrationService extends cds.ApplicationService {
     this.on('READ', 'Accounts', async (req) => {
       const salesOrg = findFilterValue(req.query.SELECT?.where, 'salesOrg');
       if (salesOrg) {
-        const sa = await c4c.findAccountsBySalesOrg(salesOrg);
-        const ids = sa.map(a => a.ObjectID);
-        if (!ids.length) return [];
-        let rows = (await c4c.findAccountsByObjectIDs(ids)).map(toAccount);
-        // Honour the list report's paging on the resolved set.
+        // Fetch only the requested page of accounts in this sales org.
         const offset = req.query.SELECT?.limit?.offset?.val ?? 0;
-        const rowsLimit = req.query.SELECT?.limit?.rows?.val;
-        if (rowsLimit != null) rows = rows.slice(offset, offset + rowsLimit);
+        const top = req.query.SELECT?.limit?.rows?.val ?? 50;
+        const { parentIDs, count } = await c4c.salesOrgAccountPage(salesOrg, { skip: offset, top });
+        const rows = parentIDs.length ? (await c4c.findAccountsByObjectIDs(parentIDs)).map(toAccount) : [];
+        rows.$count = count ?? rows.length;   // let the list report page correctly
         return rows;
       }
       const C4C = await cds.connect.to('C4C_ODATA');
@@ -222,8 +220,11 @@ module.exports = class MigrationService extends cds.ApplicationService {
     this.on('previewCount', 'SavedQueries', async (req) => {
       const q = await cds.run(SELECT.one.from(DB_QUERIES).where({ ID: req.params.at(-1).ID }));
       if (!q) return req.error(404, 'Saved query not found.');
-      const list = await resolveAccountList(q);
-      const count = list ? list.length : await c4c.countAccounts(buildAccountFilter(q));
+      const ids = parseAccountIDs(q.filterAccountIDs);
+      let count;
+      if (ids.length) count = (await c4c.findAccountsByIDs(ids)).length;
+      else if (q.filterSalesOrg) count = await c4c.countAccountsBySalesOrg(q.filterSalesOrg);
+      else count = await c4c.countAccounts(buildAccountFilter(q));
       req.info(`${count} account(s) match this query.`);
       return count;
     });

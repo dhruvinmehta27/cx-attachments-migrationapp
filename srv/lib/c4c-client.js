@@ -66,21 +66,43 @@ class C4CClient {
   }
 
   /**
-   * Resolve accounts belonging to a sales organization, via the sales-data
-   * collection (ParentObjectID points back to the account).
+   * One page of the sales-data collection for a sales org. Uses $inlinecount so
+   * a single round-trip yields both the page and the total count.
+   */
+  async _salesDataPage(salesOrg, { skip = 0, top = 50, count = false } = {}) {
+    const c4c = await this.connect();
+    const org = String(salesOrg).replace(/^=+/, '').trim().replace(/'/g, "''");
+    const filter = encodeURIComponent(`SalesOrganisationID eq '${org}'`);
+    let path = `/CorporateAccountSalesDataCollection?$filter=${filter}` +
+      `&$select=ParentObjectID,AccountID&$top=${top}&$skip=${skip}`;
+    if (count) path += '&$inlinecount=allpages';
+    const res = await c4c.send({ method: 'GET', path });
+    const rows = this._rows(res);
+    const total = count ? Number(res?.d?.__count ?? res?.['@odata.count'] ?? rows.length) : undefined;
+    return { rows, total };
+  }
+
+  /** One page of account ObjectIDs for a sales org, plus the total count. */
+  async salesOrgAccountPage(salesOrg, { skip = 0, top = 50 } = {}) {
+    const { rows, total } = await this._salesDataPage(salesOrg, { skip, top, count: true });
+    return { parentIDs: rows.map(r => r.ParentObjectID).filter(Boolean), count: total };
+  }
+
+  /** Total number of accounts in a sales org (single round-trip). */
+  async countAccountsBySalesOrg(salesOrg) {
+    const { total } = await this._salesDataPage(salesOrg, { skip: 0, top: 1, count: true });
+    return total ?? 0;
+  }
+
+  /**
+   * Resolve ALL accounts belonging to a sales organization (for bulk migration).
+   * Pages through the sales-data collection; ParentObjectID is the account.
    */
   async findAccountsBySalesOrg(salesOrg, { pageSize = 200, max = 100000 } = {}) {
     if (!salesOrg) return [];
-    const c4c = await this.connect();
-    const { CorporateAccountSalesDataCollection } = c4c.entities;
     const out = new Map();
     for (let skip = 0; ; skip += pageSize) {
-      const rows = await c4c.run(
-        SELECT.from(CorporateAccountSalesDataCollection)
-          .columns('ParentObjectID', 'AccountID', 'SalesOrganisationID')
-          .where({ SalesOrganisationID: salesOrg })
-          .limit(pageSize, skip)
-      );
+      const { rows } = await this._salesDataPage(salesOrg, { skip, top: pageSize });
       for (const r of rows) {
         if (r.ParentObjectID) out.set(r.ParentObjectID, { ObjectID: r.ParentObjectID, AccountID: r.AccountID });
       }
