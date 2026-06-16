@@ -237,7 +237,8 @@ annotate MigrationService.SavedQueries with @(
     },
     FieldGroup#Filters: {
       Data: [
-        { Value: filterAccountID },
+        { Value: filterAccountIDs },
+        { Value: filterSalesOrg },
         { Value: filterName },
         { Value: filterCity },
         { Value: filterCountry },
@@ -249,14 +250,15 @@ annotate MigrationService.SavedQueries with @(
 );
 
 annotate MigrationService.SavedQueries with {
-  queryName       @title: 'Query Name';
-  description     @title: 'Description';
-  isFavorite      @title: 'Favorite';
-  tag             @title: 'Tag';
-  filterAccountID @title: 'Account ID';
-  filterName      @title: 'Name';
-  filterCity      @title: 'City';
-  filterCountry   @title: 'Country';
-  filterRole      @title: 'Role';
-  filterStatus    @title: 'Life Cycle Status';
+  queryName        @title: 'Query Name';
+  description      @title: 'Description';
+  isFavorite       @title: 'Favorite';
+  tag              @title: 'Tag';
+  filterAccountIDs @title: 'Account IDs' @UI.MultiLineText;
+  filterSalesOrg   @title: 'Sales Organization';
+  filterName       @title: 'Name';
+  filterCity       @title: 'City';
+  filterCountry    @title: 'Country';
+  filterRole       @title: 'Role';
+  filterStatus     @title: 'Life Cycle Status';
 };

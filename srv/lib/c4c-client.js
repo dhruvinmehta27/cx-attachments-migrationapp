@@ -42,6 +42,29 @@ class C4CClient {
     return c4c.run(q);
   }
 
+  /**
+   * Resolve accounts for an explicit list of AccountIDs. Queries in chunks
+   * (OR-ed equality) so a long pasted list never produces an over-long URL.
+   */
+  async findAccountsByIDs(ids, { chunkSize = 30 } = {}) {
+    if (!ids?.length) return [];
+    const c4c = await this.connect();
+    const { CorporateAccountCollection } = c4c.entities;
+    const cols = ['ObjectID', 'AccountID', 'Name', 'RoleCodeText', 'LifeCycleStatusCode', 'City', 'CountryCode'];
+    const out = new Map();
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize);
+      const xpr = [];
+      chunk.forEach((id, j) => {
+        if (j) xpr.push('or');
+        xpr.push({ ref: ['AccountID'] }, '=', { val: id });
+      });
+      const rows = await c4c.run(SELECT.from(CorporateAccountCollection).columns(...cols).where(xpr));
+      for (const r of rows) out.set(r.ObjectID, r);
+    }
+    return [...out.values()];
+  }
+
   /** Count accounts matching a filter (pages through ObjectIDs only). */
   async countAccounts(filter, { max = 100000, pageSize = 1000 } = {}) {
     let skip = 0, total = 0;

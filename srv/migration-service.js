@@ -9,17 +9,28 @@ const DB_JOBS = 'cx.migration.MigrationJobs';
 const DB_ITEMS = 'cx.migration.MigrationItems';
 const DB_QUERIES = 'cx.migration.SavedQueries';
 
+/** Parse a pasted list of account IDs ("=28413 ; =106304 ; 95836") into a clean array. */
+function parseAccountIDs(text) {
+  if (!text) return [];
+  return [...new Set(
+    String(text)
+      .split(/[;,\s]+/)
+      .map(s => s.trim().replace(/^=+/, '').trim())
+      .filter(Boolean)
+  )];
+}
+
 /** Build a C4C account equality filter from a saved query's criteria. */
 function buildAccountFilter(q) {
   const w = {};
-  if (q.filterAccountID) w.AccountID = q.filterAccountID;
-  if (q.filterName)      w.Name = q.filterName;
-  if (q.filterCity)      w.City = q.filterCity;
-  if (q.filterCountry)   w.CountryCode = q.filterCountry;
-  if (q.filterRole)      w.RoleCodeText = q.filterRole;
-  if (q.filterStatus)    w.LifeCycleStatusCode = q.filterStatus;
+  if (q.filterName)    w.Name = q.filterName;
+  if (q.filterCity)    w.City = q.filterCity;
+  if (q.filterCountry) w.CountryCode = q.filterCountry;
+  if (q.filterRole)    w.RoleCodeText = q.filterRole;
+  if (q.filterStatus)  w.LifeCycleStatusCode = q.filterStatus;
   return w;
 }
+
 
 /** Convert a C4C OData v2 date ("/Date(ms[+offset])/") into an ISO timestamp. */
 function parseC4CDate(v) {
@@ -150,11 +161,16 @@ module.exports = class MigrationService extends cds.ApplicationService {
       return item;
     });
 
-    // Saved query: how many accounts currently match the filter.
+    // Saved query: how many accounts currently match (ID list or filter).
     this.on('previewCount', 'SavedQueries', async (req) => {
       const q = await cds.run(SELECT.one.from(DB_QUERIES).where({ ID: req.params.at(-1).ID }));
       if (!q) return req.error(404, 'Saved query not found.');
-      return c4c.countAccounts(buildAccountFilter(q));
+      const ids = parseAccountIDs(q.filterAccountIDs);
+      const count = ids.length
+        ? (await c4c.findAccountsByIDs(ids)).length
+        : await c4c.countAccounts(buildAccountFilter(q));
+      req.info(`${count} account(s) match this query.`);
+      return count;
     });
 
     // Saved query: bulk-migrate attachments of every matching account.
@@ -162,7 +178,6 @@ module.exports = class MigrationService extends cds.ApplicationService {
       const q = await cds.run(SELECT.one.from(DB_QUERIES).where({ ID: req.params.at(-1).ID }));
       if (!q) return req.error(404, 'Saved query not found.');
       const { targetEndpoint } = req.data;
-      const filter = buildAccountFilter(q);
 
       const jobID = cds.utils.uuid();
       await cds.run(INSERT.into(DB_JOBS).entries({
@@ -176,7 +191,7 @@ module.exports = class MigrationService extends cds.ApplicationService {
 
       // Kick off the long-running migration in the background and return the
       // job immediately so the user can track progress in Migration Jobs.
-      this._bulkMigrate(jobID, filter, targetEndpoint)
+      this._bulkMigrate(jobID, q, targetEndpoint)
         .catch(err => cds.log('migration').error('bulk migration failed', err));
 
       return cds.run(SELECT.one.from(DB_JOBS).where({ ID: jobID }));
@@ -186,18 +201,15 @@ module.exports = class MigrationService extends cds.ApplicationService {
   }
 
   /**
-   * Background bulk migration: pages through every account matching the filter,
-   * streams each attachment to the target endpoint, and updates the job counters
-   * and per-file items as it goes. Processed sequentially to bound memory.
+   * Background bulk migration: resolves every account targeted by the query
+   * (explicit ID list, else paged filter), streams each attachment to the
+   * target endpoint, and updates the job counters and per-file items as it
+   * goes. Processed sequentially to bound memory.
    */
-  async _bulkMigrate(jobID, filter, targetEndpoint) {
-    const pageSize = 50;
-    let skip = 0, total = 0, ok = 0, fail = 0;
+  async _bulkMigrate(jobID, query, targetEndpoint) {
+    const counters = { total: 0, ok: 0, fail: 0 };
 
-    for (;;) {
-      const accounts = await c4c.listAccounts({ filter, skip, top: pageSize });
-      if (!accounts.length) break;
-
+    const processAccounts = async (accounts) => {
       for (const acc of accounts) {
         let attachments = [];
         try {
@@ -207,7 +219,7 @@ module.exports = class MigrationService extends cds.ApplicationService {
           continue;
         }
         for (const att of attachments) {
-          total++;
+          counters.total++;
           const item = {
             ID: cds.utils.uuid(),
             job_ID: jobID,
@@ -228,23 +240,34 @@ module.exports = class MigrationService extends cds.ApplicationService {
                 sourceSystem: 'SAP-C4C', sourceID: att.ObjectID
               }
             });
-            item.status = 'Migrated'; item.targetRef = ref; ok++;
+            item.status = 'Migrated'; item.targetRef = ref; counters.ok++;
           } catch (e) {
-            item.status = 'Failed'; item.message = e.message; fail++;
+            item.status = 'Failed'; item.message = e.message; counters.fail++;
           }
           await cds.run(INSERT.into(DB_ITEMS).entries(item));
         }
-        // Update running totals after each account.
-        await cds.run(UPDATE(DB_JOBS).set({ totalCount: total, successCount: ok, failureCount: fail }).where({ ID: jobID }));
+        await cds.run(UPDATE(DB_JOBS).set({
+          totalCount: counters.total, successCount: counters.ok, failureCount: counters.fail
+        }).where({ ID: jobID }));
       }
+    };
 
-      if (accounts.length < pageSize) break;
-      skip += pageSize;
+    const ids = parseAccountIDs(query.filterAccountIDs);
+    if (ids.length) {
+      await processAccounts(await c4c.findAccountsByIDs(ids));
+    } else {
+      const filter = buildAccountFilter(query);
+      const pageSize = 50;
+      for (let skip = 0; ; skip += pageSize) {
+        const accounts = await c4c.listAccounts({ filter, skip, top: pageSize });
+        if (!accounts.length) break;
+        await processAccounts(accounts);
+        if (accounts.length < pageSize) break;
+      }
     }
 
-    const status = total === 0 ? 'Completed'
-      : fail === 0 ? 'Completed'
-      : ok === 0 ? 'Failed' : 'PartiallyCompleted';
+    const { total, ok, fail } = counters;
+    const status = (total === 0 || fail === 0) ? 'Completed' : (ok === 0 ? 'Failed' : 'PartiallyCompleted');
     await cds.run(UPDATE(DB_JOBS).set({
       status, finishedAt: new Date().toISOString(),
       totalCount: total, successCount: ok, failureCount: fail

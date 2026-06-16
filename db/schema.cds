@@ -12,12 +12,13 @@ entity SavedQueries : cuid, managed {
   isFavorite      : Boolean default false @title: 'Favorite';
   tag             : String(60)  @title: 'Tag';
   // Account filter criteria (all optional).
-  filterAccountID : String(60)  @title: 'Account ID';
-  filterName      : String(255) @title: 'Name';
-  filterCity      : String(60)  @title: 'City';
-  filterCountry   : String(3)   @title: 'Country';
-  filterRole      : String(60)  @title: 'Role';
-  filterStatus    : String(10)  @title: 'Life Cycle Status';
+  filterAccountIDs : String(8000) @title: 'Account IDs';  // paste many: ; , space or newline separated
+  filterName       : String(255)  @title: 'Name';
+  filterCity       : String(60)   @title: 'City';
+  filterCountry    : String(3)    @title: 'Country';
+  filterRole       : String(60)   @title: 'Role';
+  filterStatus     : String(10)   @title: 'Life Cycle Status';
+  filterSalesOrg   : String(20)   @title: 'Sales Organization';
 }
 
 /**
