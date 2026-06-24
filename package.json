@@ -23,7 +23,8 @@
   "cds": {
     "requires": {
       "auth": {
-        "[development]": { "kind": "mocked" },
+        "[development]": { "kind": "dummy" },
+        "[hybrid]": { "kind": "dummy" },
         "[production]": { "kind": "xsuaa" }
       },
       "db": {
