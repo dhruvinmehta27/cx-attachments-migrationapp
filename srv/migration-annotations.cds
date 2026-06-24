@@ -106,8 +106,7 @@ annotate MigrationService.Attachments with @(
         $Type: 'UI.DataFieldForAction',
         Action: 'MigrationService.deleteAttachment',
         Label: 'Delete',
-        Inline: true,
-        IconUrl: 'sap-icon://delete'
+        Inline: true
       }
     ]
   }
