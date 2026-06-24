@@ -17,3 +17,8 @@ mta_archives/
 
 # @cap-js/cds-typer
 @cds-models
+
+# HTML5 app build output
+app/*/dist/
+resources/
+app/*/package-lock.json

@@ -12,7 +12,7 @@ entity SavedQueries : cuid, managed {
   isFavorite      : Boolean default false @title: 'Favorite';
   tag             : String(60)  @title: 'Tag';
   // Account filter criteria (all optional).
-  filterAccountIDs : String(8000) @title: 'Account IDs';  // paste many: ; , space or newline separated
+  filterAccountIDs : LargeString @title: 'Account IDs';  // paste many: ; , space or newline separated (NCLOB on HANA)
   filterName       : String(255)  @title: 'Name';
   filterCity       : String(60)   @title: 'City';
   filterCountry    : String(3)    @title: 'Country';
