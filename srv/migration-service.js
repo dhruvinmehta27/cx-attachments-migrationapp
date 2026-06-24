@@ -12,6 +12,16 @@ const DB_JOBS = 'cx.migration.MigrationJobs';
 const DB_ITEMS = 'cx.migration.MigrationItems';
 const DB_QUERIES = 'cx.migration.SavedQueries';
 
+// Interim "no database" mode: when no persistent DB is provisioned yet, the app
+// still browses C4C and serves downloads/deletes, but anything that needs to be
+// stored (saving queries, recording migration jobs) is refused with a clear
+// message instead of silently writing to throwaway in-memory storage.
+const PERSISTENCE_DISABLED = process.env.PERSISTENCE_DISABLED === 'true';
+const NO_DB_MSG =
+  'No database is provisioned yet, so this cannot be saved. Browsing accounts, ' +
+  'downloading attachments and deleting them in C4C all work; saving queries and ' +
+  'running migrations will be available once a database (HANA) is connected.';
+
 /** Convert a C4C OData v2 date ("/Date(ms[+offset])/") into an ISO timestamp. */
 function parseC4CDate(v) {
   if (v == null) return null;
@@ -94,6 +104,21 @@ function parentAccountID(req) {
 
 module.exports = class MigrationService extends cds.ApplicationService {
   async init() {
+    // No-database mode: block every operation that would need to persist, with a
+    // clear message. Live (C4C-backed) reads, downloads and deletes are untouched.
+    if (PERSISTENCE_DISABLED) {
+      const refuse = (req) => req.reject(503, NO_DB_MSG);
+      // Block anything that isn't a read on the persisted entity and its draft
+      // sibling (covers CRUD + the whole draft choreography), plus the migration
+      // actions that record jobs. Live C4C reads and downloads are untouched.
+      const refuseWrites = (req) => { if (req.event !== 'READ') return refuse(req); };
+      const SavedQueries = this.entities.SavedQueries;
+      this.before('*', SavedQueries, refuseWrites);
+      if (SavedQueries.drafts) this.before('*', SavedQueries.drafts, refuseWrites);
+      this.before('migrateAttachments', 'Accounts', refuse);
+      this.before('migrate', 'Attachments', refuse);
+    }
+
     // Populate the per-account / per-query download links (URL + visible text).
     this.after('READ', 'Accounts', (rows) => {
       for (const r of [].concat(rows || [])) {

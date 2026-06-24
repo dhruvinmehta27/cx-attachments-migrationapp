@@ -26,19 +26,23 @@ modules:
       - name: srv-api
         properties:
           srv-url: ${default-url}
+    properties:
+      # Interim: no database provisioned yet. App runs DB-less; anything that
+      # needs to persist returns a clear error. Remove this (and restore the
+      # db bindings below) once HANA is available.
+      PERSISTENCE_DISABLED: "true"
     requires:
-      - name: cx-attachments-migrationapp-db
       - name: cx-attachments-migrationapp-auth
       - name: cx-attachments-migrationapp-destination
 
-  # ---- HANA deployer -------------------------------------------------
-  - name: cx-attachments-migrationapp-db-deployer
-    type: hdb
-    path: gen/db
-    parameters:
-      buildpack: nodejs_buildpack
-    requires:
-      - name: cx-attachments-migrationapp-db
+  # ---- HANA deployer (disabled until HANA is provisioned) ------------
+  # - name: cx-attachments-migrationapp-db-deployer
+  #   type: hdb
+  #   path: gen/db
+  #   parameters:
+  #     buildpack: nodejs_buildpack
+  #   requires:
+  #     - name: cx-attachments-migrationapp-db
 
   # ---- Fiori launchpad / app host ------------------------------------
   - name: cx-attachments-migrationapp-app-content
@@ -98,11 +102,14 @@ modules:
       supported-platforms: []
 
 resources:
-  - name: cx-attachments-migrationapp-db
-    type: com.sap.xs.hdi-container
-    parameters:
-      service: hana
-      service-plan: hdi-shared
+  # HANA container disabled until HANA Cloud is provisioned. Restore this block
+  # (and the db bindings/deployer above) and set db kind back to hana-cloud to
+  # enable persistence.
+  # - name: cx-attachments-migrationapp-db
+  #   type: com.sap.xs.hdi-container
+  #   parameters:
+  #     service: hana
+  #     service-plan: hdi-shared
 
   - name: cx-attachments-migrationapp-auth
     type: org.cloudfoundry.managed-service
