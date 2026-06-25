@@ -118,7 +118,7 @@ resources:
       service-plan: application
       path: ./xs-security.json
       config:
-        xsappname: cx-attachments-migrationapp-${org}-${space}
+        xsappname: cx-attachments-migrationapp-${space}
 
   - name: cx-attachments-migrationapp-destination
     type: org.cloudfoundry.managed-service
