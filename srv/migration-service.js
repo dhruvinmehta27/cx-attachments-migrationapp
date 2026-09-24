@@ -3,6 +3,7 @@ const { Readable } = require('stream');
 const c4c = require('./lib/c4c-client');
 const target = require('./lib/target-client');
 const { parseAccountIDs, buildAccountFilter, resolveAccountList, countQueryAccounts } = require('./lib/query-accounts');
+const { applyQuery } = require('./lib/attach-query');
 
 const DOWNLOAD_BATCH_SIZE = 500;
 
@@ -209,19 +210,13 @@ module.exports = class MigrationService extends cds.ApplicationService {
         return rows.map(toAttachment)[0] ?? null;
       }
 
-      // List: honour $top/$skip and return the total count so the Fiori table
-      // shows "Attachments (N)" and stops paging at the real end (no endless More).
-      const { limit } = req.query.SELECT || {};
-      const top = limit?.rows?.val;
-      const skip = limit?.offset?.val ?? 0;
-      if (!Number.isFinite(top)) {
-        // No paging requested (e.g. internal full read): return everything.
-        return (await c4c.listAttachments(accountObjectID)).map(toAttachment);
-      }
-      const { rows, total } = await c4c.listAttachmentsPage(accountObjectID, { skip, top });
-      const mapped = rows.map(toAttachment);
-      if (Number.isFinite(total)) mapped.$count = total;
-      return mapped;
+      // List: fetch all of the account's attachments, then apply the Fiori query
+      // (toolbar search, column filters, sort, paging) in memory and return the
+      // filtered total so the header count and "More" paging are both correct.
+      const all = (await c4c.listAttachments(accountObjectID)).map(toAttachment);
+      const { rows, count } = applyQuery(all, req.query.SELECT, ['accountObjectID']);
+      rows.$count = count;
+      return rows;
     });
 
     // Bound action on Accounts: migrate ALL attachments of the account.
