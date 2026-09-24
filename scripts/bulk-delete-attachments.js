@@ -80,9 +80,12 @@ const OBJECTID_RE = /\b[0-9A-Fa-f]{32}\b/;
 
 function resolveObjectIDs(rows, idColumn) {
   if (!rows.length) return { ids: [], header: [], strategy: 'empty', samples: [] };
-  const header = rows[0].map(h => h.trim());
+  // A headerless file (e.g. one URL/ObjectID per line) has a real ObjectID in
+  // its very first row — don't mistake that row for a header and skip it.
+  const firstRowIsData = rows[0].some(c => OBJECTID_RE.test(String(c)));
+  const header = firstRowIsData ? [] : rows[0].map(h => h.trim());
   const lower = header.map(h => h.toLowerCase());
-  const dataRows = rows.slice(1);
+  const dataRows = firstRowIsData ? rows : rows.slice(1);
 
   // 1) explicit / auto-detected ObjectID column
   const candidates = idColumn
