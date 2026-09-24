@@ -204,9 +204,24 @@ module.exports = class MigrationService extends cds.ApplicationService {
       }
 
       const onlyIDs = single ? [req.params.at(-1).ID] : undefined;
-      const rows = await c4c.listAttachments(accountObjectID, { onlyIDs });
+      if (single) {
+        const rows = await c4c.listAttachments(accountObjectID, { onlyIDs });
+        return rows.map(toAttachment)[0] ?? null;
+      }
+
+      // List: honour $top/$skip and return the total count so the Fiori table
+      // shows "Attachments (N)" and stops paging at the real end (no endless More).
+      const { limit } = req.query.SELECT || {};
+      const top = limit?.rows?.val;
+      const skip = limit?.offset?.val ?? 0;
+      if (!Number.isFinite(top)) {
+        // No paging requested (e.g. internal full read): return everything.
+        return (await c4c.listAttachments(accountObjectID)).map(toAttachment);
+      }
+      const { rows, total } = await c4c.listAttachmentsPage(accountObjectID, { skip, top });
       const mapped = rows.map(toAttachment);
-      return single ? (mapped[0] ?? null) : mapped;
+      if (Number.isFinite(total)) mapped.$count = total;
+      return mapped;
     });
 
     // Bound action on Accounts: migrate ALL attachments of the account.

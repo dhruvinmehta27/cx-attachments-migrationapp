@@ -189,6 +189,54 @@ class C4CClient {
   }
 
   /**
+   * One page of an account's attachments (metadata only) plus the total count,
+   * so the Fiori list can page correctly and stop at the real end. Honours
+   * $top/$skip for the slice and resolves the total via countAttachments().
+   */
+  async listAttachmentsPage(accountObjectID, { skip = 0, top = 50 } = {}) {
+    const c4c = await this.connect();
+    const fields = [
+      'ObjectID', 'ParentObjectID', 'AccountID', 'Name', 'MimeType',
+      'SizeInkB', 'DocumentLink', 'CategoryCode', 'TypeCodeText', 'CreatedOn', 'CreatedBy'
+    ];
+    const path =
+      `/CorporateAccountCollection('${encodeURIComponent(accountObjectID)}')` +
+      `/CorporateAccountAttachmentFolder?$select=${fields.join(',')}` +
+      `&$top=${top}&$skip=${skip}`;
+    const res = await c4c.send({ method: 'GET', path });
+    const rows = this._rows(res);
+    const total = await this.countAttachments(accountObjectID);
+    return { rows, total };
+  }
+
+  /**
+   * Total number of attachments for an account. Prefers the cheap C4C $count
+   * endpoint (…/CorporateAccountAttachmentFolder/$count); if that isn't usable
+   * it falls back to paging through ObjectIDs so a number is always returned.
+   */
+  async countAttachments(accountObjectID) {
+    const c4c = await this.connect();
+    const base =
+      `/CorporateAccountCollection('${encodeURIComponent(accountObjectID)}')` +
+      `/CorporateAccountAttachmentFolder`;
+    try {
+      const res = await c4c.send({ method: 'GET', path: `${base}/$count` });
+      const n = typeof res === 'number' ? res
+        : Number(typeof res === 'string' ? res.trim() : (res?.d ?? res?.value ?? NaN));
+      if (Number.isFinite(n)) return n;
+    } catch { /* fall through to paged count */ }
+    let total = 0, skip = 0; const pageSize = 200;
+    for (;;) {
+      const res = await c4c.send({ method: 'GET', path: `${base}?$select=ObjectID&$top=${pageSize}&$skip=${skip}` });
+      const rows = this._rows(res);
+      total += rows.length;
+      if (rows.length < pageSize) break;
+      skip += pageSize;
+    }
+    return total;
+  }
+
+  /**
    * Delete a single attachment in C4C. CSRF handling (fetch token + retry) is
    * done automatically by the odata-v2 client because `csrf: true` is set on
    * the C4C_ODATA destination.
