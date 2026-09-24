@@ -55,8 +55,17 @@ function parseArgs(argv) {
   return a;
 }
 
-// ---- minimal CSV parser (handles quoted fields, commas, CRLF) --------------
-function parseCSV(text) {
+// ---- delimited parser (auto CSV/TSV, handles quoted fields, CRLF) ----------
+function detectDelim(text) {
+  const nl = text.indexOf('\n');
+  const first = nl < 0 ? text : text.slice(0, nl);
+  const tabs = (first.match(/\t/g) || []).length;
+  const commas = (first.match(/,/g) || []).length;
+  return tabs > commas ? '\t' : ',';
+}
+
+function parseCSV(text, delim) {
+  const d = delim || detectDelim(text);
   const rows = [];
   let row = [], field = '', inQ = false;
   for (let i = 0; i < text.length; i++) {
@@ -65,7 +74,7 @@ function parseCSV(text) {
       if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQ = false; }
       else field += c;
     } else if (c === '"') inQ = true;
-    else if (c === ',') { row.push(field); field = ''; }
+    else if (c === d) { row.push(field); field = ''; }
     else if (c === '\r') { /* ignore */ }
     else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
     else field += c;
@@ -77,44 +86,68 @@ function parseCSV(text) {
 
 // A C4C ObjectID is a 32-char hex GUID, e.g. 00163E1CA7F71ED798F82443E242FDEB
 const OBJECTID_RE = /\b[0-9A-Fa-f]{32}\b/;
+// The attachment ObjectID sits inside the attachment-collection URL. This is
+// UNAMBIGUOUS: a row may also contain the parent account ObjectID (also 32 hex)
+// in another column, so we must never just grab "the first 32-hex token".
+const ATTACH_URL_RE = /CorporateAccountAttachmentFolderCollection\('([0-9A-Fa-f]{32})'\)/;
+
+/**
+ * Resolve one row to the attachment ObjectID. Precedence, safest first:
+ *   1. an explicit --id-column value
+ *   2. the attachment-collection URL (unambiguous attachment id)
+ *   3. an auto-detected ObjectID-named column
+ *   4. last resort: the first 32-hex token in the row (may be ambiguous)
+ */
+function resolveRow(row, explicitCol, autoCol) {
+  if (explicitCol !== -1) {
+    const raw = (row[explicitCol] || '').trim();
+    const m = raw.match(OBJECTID_RE);
+    if (m) return { id: m[0].toUpperCase(), how: 'id-column', raw };
+    if (raw) return { id: raw.toUpperCase(), how: 'id-column', raw };
+  }
+  for (const cell of row) {
+    const m = String(cell).match(ATTACH_URL_RE);
+    if (m) return { id: m[1].toUpperCase(), how: 'url', raw: String(cell).slice(0, 95) };
+  }
+  if (autoCol !== -1) {
+    const raw = (row[autoCol] || '').trim();
+    const m = raw.match(OBJECTID_RE);
+    if (m) return { id: m[0].toUpperCase(), how: 'auto-column', raw };
+  }
+  for (const cell of row) {
+    const m = String(cell).match(OBJECTID_RE);
+    if (m) return { id: m[0].toUpperCase(), how: 'scan', raw: String(cell).slice(0, 60) };
+  }
+  return null;
+}
 
 function resolveObjectIDs(rows, idColumn) {
-  if (!rows.length) return { ids: [], header: [], strategy: 'empty', samples: [] };
-  // A headerless file (e.g. one URL/ObjectID per line) has a real ObjectID in
-  // its very first row — don't mistake that row for a header and skip it.
+  if (!rows.length) return { ids: [], header: [], strategy: 'empty', samples: [], dataCount: 0 };
+  // A headerless file (one URL/ObjectID per line) has a real ObjectID in its
+  // first row — don't mistake that row for a header and skip it.
   const firstRowIsData = rows[0].some(c => OBJECTID_RE.test(String(c)));
   const header = firstRowIsData ? [] : rows[0].map(h => h.trim());
   const lower = header.map(h => h.toLowerCase());
   const dataRows = firstRowIsData ? rows : rows.slice(1);
 
-  // 1) explicit / auto-detected ObjectID column
-  const candidates = idColumn
-    ? [idColumn.toLowerCase()]
-    : ['objectid', 'attachmentobjectid', 'attachment_objectid', 'attachmentid', 'documentid'];
-  let col = -1;
-  for (const cand of candidates) { col = lower.indexOf(cand); if (col !== -1) break; }
+  const explicitCol = idColumn ? lower.indexOf(idColumn.toLowerCase()) : -1;
+  let autoCol = -1;
+  for (const cand of ['attachmentobjectid', 'attachment_objectid', 'objectid', 'attachmentid', 'documentid']) {
+    autoCol = lower.indexOf(cand); if (autoCol !== -1) break;
+  }
 
   const out = [];
   const samples = [];
-  let strategy;
-  if (col !== -1) {
-    strategy = `column "${header[col]}"`;
-    for (const r of dataRows) {
-      const raw = (r[col] || '').trim();
-      const m = raw.match(OBJECTID_RE);
-      const id = m ? m[0].toUpperCase() : (raw || null);
-      if (id) { out.push(id); if (samples.length < 5) samples.push({ raw, id }); }
-    }
-  } else {
-    // 2) fall back: scan every cell of each row for a 32-hex GUID
-    strategy = 'scanned all columns for a 32-hex ObjectID';
-    for (const r of dataRows) {
-      let id = null;
-      for (const cell of r) { const m = String(cell).match(OBJECTID_RE); if (m) { id = m[0].toUpperCase(); break; } }
-      if (id) { out.push(id); if (samples.length < 5) samples.push({ raw: r.join(' | ').slice(0, 80), id }); }
-    }
+  const methodCounts = {};
+  for (const r of dataRows) {
+    const res = resolveRow(r, explicitCol, autoCol);
+    if (!res) continue;
+    out.push(res.id);
+    methodCounts[res.how] = (methodCounts[res.how] || 0) + 1;
+    if (samples.length < 6) samples.push(res);
   }
-  return { ids: out, header, strategy, samples, dataCount: dataRows.length };
+  const strategy = Object.entries(methodCounts).map(([k, v]) => `${k}:${v}`).join(', ') || 'none';
+  return { ids: out, header, strategy, samples, dataCount: dataRows.length, methodCounts };
 }
 
 // ---- concurrency pool ------------------------------------------------------
@@ -161,7 +194,7 @@ async function main() {
   console.log(`ID strategy     : ${strategy}`);
   console.log(`Unique ObjectIDs: ${ids.length}${args.limit ? ` (limited to ${args.limit})` : ''}`);
   console.log('Sample mapping  :');
-  for (const s of samples) console.log(`   ${s.id}   <=   ${s.raw}`);
+  for (const s of samples) console.log(`   [${s.how}] ${s.id}   <=   ${s.raw}`);
   console.log('──────────────────────────────────────────────');
 
   if (!ids.length) { console.error('No ObjectIDs resolved from the list — check the file / --id-column.'); process.exit(1); }
