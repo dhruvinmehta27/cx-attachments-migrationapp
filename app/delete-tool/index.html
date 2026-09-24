@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Attachment Bulk Delete</title>
+<style>
+  :root{
+    --bg:#f5f6f7; --card:#fff; --ink:#1d2d3e; --muted:#6a7888; --line:#e2e6ea;
+    --blue:#0a6ed1; --blue-d:#085caf; --green:#107e3e; --amber:#b8770a; --red:#bb0000; --grey:#8a94a0;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#12171d; --card:#1b222b; --ink:#e6ebf1; --muted:#9aa7b5; --line:#2b333d;
+      --blue:#5aa7f0; --blue-d:#7bb8f3; --green:#3fbf6b; --amber:#e0a53a; --red:#f16b6b; --grey:#8a94a0;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:1100px;margin:0 auto;padding:16px}
+  h1{font-size:20px;margin:8px 0 2px}
+  .sub{color:var(--muted);margin:0 0 16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+  textarea{width:100%;min-height:120px;resize:vertical;border:1px solid var(--line);border-radius:8px;padding:10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:var(--bg);color:var(--ink)}
+  .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  button{border:1px solid var(--blue);background:var(--blue);color:#fff;border-radius:8px;padding:8px 14px;font-size:14px;cursor:pointer}
+  button.ghost{background:transparent;color:var(--blue)}
+  button.danger{background:var(--red);border-color:var(--red)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  input[type=number]{width:70px}
+  input[type=text],input[type=number],select{border:1px solid var(--line);border-radius:8px;padding:7px 9px;background:var(--bg);color:var(--ink)}
+  label{color:var(--muted)}
+  .stats{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 0}
+  .stat{flex:1 1 110px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:110px}
+  .stat .n{font-size:22px;font-weight:700}
+  .stat .l{color:var(--muted);font-size:12px}
+  .bar{height:10px;background:var(--line);border-radius:6px;overflow:hidden;margin-top:10px}
+  .bar > i{display:block;height:100%;width:0;background:var(--blue);transition:width .3s}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:600;position:sticky;top:0;background:var(--card)}
+  td.id{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+  .s-Pending{background:rgba(138,148,160,.15);color:var(--grey)}
+  .s-Deleting{background:rgba(10,110,209,.15);color:var(--blue)}
+  .s-Deleted{background:rgba(16,126,62,.15);color:var(--green)}
+  .s-Gone{background:rgba(184,119,10,.15);color:var(--amber)}
+  .s-Failed{background:rgba(187,0,0,.15);color:var(--red)}
+  .muted{color:var(--muted)}
+  .pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:10px}
+  .warn{color:var(--amber)}
+  .err{color:var(--red)}
+  .hide{display:none}
+  code{background:var(--bg);padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Attachment Bulk Delete</h1>
+  <p class="sub">Paste or upload your list, review what was found, then delete — with live status per attachment. Deletes are permanent in C4C.</p>
+
+  <!-- Input -->
+  <div class="card" id="inputCard">
+    <div class="row" style="justify-content:space-between">
+      <strong>1 · Your list</strong>
+      <span class="muted">Accepts your export as-is (URLs, tab/comma columns). The attachment ObjectID is taken from the <code>CorporateAccountAttachmentFolderCollection('…')</code> URL.</span>
+    </div>
+    <textarea id="input" placeholder="Paste your rows here — e.g.&#10;…CorporateAccountAttachmentFolderCollection('258862EFB5B71FE080EAF10CBB6340B7')&#10;or upload a .csv below"></textarea>
+    <div class="row" style="margin-top:10px">
+      <input type="file" id="file" accept=".csv,.tsv,.txt" />
+      <button id="parseBtn">Parse list</button>
+      <span id="parseMsg" class="muted"></span>
+    </div>
+  </div>
+
+  <!-- Controls + stats -->
+  <div class="card hide" id="runCard">
+    <div class="row" style="justify-content:space-between">
+      <strong>2 · Delete</strong>
+      <span class="muted">Keep this tab open while it runs. Safe to re-run — already-deleted items report “gone”.</span>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="n" id="cTotal">0</div><div class="l">Total</div></div>
+      <div class="stat"><div class="n" id="cDeleted">0</div><div class="l">Deleted</div></div>
+      <div class="stat"><div class="n" id="cGone">0</div><div class="l">Already gone</div></div>
+      <div class="stat"><div class="n" id="cFailed">0</div><div class="l">Failed</div></div>
+      <div class="stat"><div class="n" id="cLeft">0</div><div class="l">Remaining</div></div>
+      <div class="stat"><div class="n" id="cRate">0/s</div><div class="l">Rate · ETA <span id="cEta">–</span></div></div>
+    </div>
+    <div class="bar"><i id="bar"></i></div>
+    <div class="row" style="margin-top:12px">
+      <label>Parallel <input type="number" id="conc" value="8" min="1" max="30" /></label>
+      <button id="startBtn" class="danger">Start deletion</button>
+      <button id="stopBtn" class="ghost" disabled>Stop</button>
+      <button id="retryBtn" class="ghost" disabled>Retry failed</button>
+      <button id="exportBtn" class="ghost">Export results (CSV)</button>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="card hide" id="tableCard">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <div class="row">
+        <label>Show
+          <select id="filter">
+            <option value="all">All</option>
+            <option value="Pending">Pending</option>
+            <option value="Deleting">Deleting</option>
+            <option value="Deleted">Deleted</option>
+            <option value="Gone">Already gone</option>
+            <option value="Failed">Failed</option>
+          </select>
+        </label>
+        <input type="text" id="search" placeholder="Search id / file name…" />
+      </div>
+      <span class="muted" id="viewMsg"></span>
+    </div>
+    <div style="overflow:auto;max-height:60vh">
+      <table>
+        <thead><tr><th style="width:44px">#</th><th>Attachment ObjectID</th><th>File name</th><th style="width:130px">Status</th><th>Detail</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="pager">
+      <button class="ghost" id="prev">‹ Prev</button>
+      <span class="muted" id="pageInfo">–</span>
+      <button class="ghost" id="next">Next ›</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const $ = (id) => document.getElementById(id);
+  const ATTACH_URL = /CorporateAccountAttachmentFolderCollection\('([0-9A-Fa-f]{32})'\)/;
+  const HEX32 = /[0-9A-Fa-f]{32}/g;
+  const FILE_RE = /([^\t,;|]+\.(?:pdf|xlsx?|docx?|pptx?|png|jpe?g|gif|txt|msg|zip|csv|xml))/i;
+
+  let rows = [];            // {id, fn, status, msg}
+  let running = false, cursor = 0, started = 0, pageSize = 100, page = 0;
+
+  // ---- parse ----
+  function parse(text){
+    const seen = new Set();
+    let ambiguous = 0, skipped = 0;
+    const out = [];
+    for (const line of text.split(/\r?\n/)){
+      const t = line.trim();
+      if (!t) continue;
+      let id = null;
+      const u = t.match(ATTACH_URL);
+      if (u) id = u[1];
+      else {
+        const all = t.match(HEX32) || [];
+        if (all.length === 1) id = all[0];
+        else if (all.length > 1){ ambiguous++; continue; }   // account+attachment on one line, no URL → unsafe, skip
+        else { skipped++; continue; }
+      }
+      id = id.toUpperCase();
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const fn = (t.match(FILE_RE) || [])[1] || '';
+      out.push({ id, fn: fn.trim(), status: 'Pending', msg: '' });
+    }
+    return { out, ambiguous, skipped };
+  }
+
+  $('parseBtn').onclick = () => {
+    const { out, ambiguous, skipped } = parse($('input').value);
+    rows = out; cursor = 0; page = 0;
+    let msg = `Found ${out.length.toLocaleString()} unique attachments.`;
+    if (ambiguous) msg += ` ⚠ ${ambiguous} line(s) had multiple IDs and no attachment URL — skipped for safety.`;
+    if (skipped) msg += ` ${skipped} line(s) had no ID.`;
+    $('parseMsg').innerHTML = out.length
+      ? msg + (ambiguous ? ' <span class="warn">Review those lines.</span>' : '')
+      : '<span class="err">No attachment IDs found — check the list.</span>';
+    if (out.length){ $('runCard').classList.remove('hide'); $('tableCard').classList.remove('hide'); }
+    render(true);
+  };
+
+  $('file').onchange = (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => { $('input').value = r.result; $('parseBtn').click(); };
+    r.readAsText(f);
+  };
+
+  // ---- delete loop ----
+  async function del(id){
+    const res = await fetch('/migration/delete/attachment', {
+      method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ id })
+    });
+    let j; try { j = await res.json(); } catch { j = { status:'error', message: res.status+' '+res.statusText }; }
+    return j;
+  }
+
+  function nextPending(){
+    while (cursor < rows.length){
+      const r = rows[cursor++];
+      if (r.status === 'Pending') return r;
+    }
+    return null;
+  }
+
+  async function worker(){
+    while (running){
+      const r = nextPending();
+      if (!r) return;
+      r.status = 'Deleting';
+      try {
+        const j = await del(r.id);
+        r.status = j.status === 'deleted' ? 'Deleted' : j.status === 'gone' ? 'Gone' : 'Failed';
+        r.msg = j.message || '';
+      } catch(e){ r.status = 'Failed'; r.msg = e.message; }
+    }
+  }
+
+  async function start(){
+    if (running) return;
+    running = true; started = Date.now(); cursor = 0;
+    $('startBtn').disabled = true; $('stopBtn').disabled = false; $('retryBtn').disabled = true;
+    $('parseBtn').disabled = true; $('file').disabled = true;
+    const n = Math.min(30, Math.max(1, parseInt($('conc').value,10) || 8));
+    const timer = setInterval(render, 400);
+    await Promise.all(Array.from({length:n}, worker));
+    clearInterval(timer);
+    running = false;
+    $('startBtn').disabled = false; $('stopBtn').disabled = true;
+    $('retryBtn').disabled = rows.every(r => r.status !== 'Failed');
+    $('parseBtn').disabled = false; $('file').disabled = false;
+    render();
+  }
+
+  $('startBtn').onclick = () => {
+    const left = rows.filter(r => r.status === 'Pending').length;
+    if (!left){ alert('Nothing pending to delete.'); return; }
+    if (!confirm(`Permanently delete ${left.toLocaleString()} attachment(s) from C4C? This cannot be undone.`)) return;
+    start();
+  };
+  $('stopBtn').onclick = () => { running = false; };
+  $('retryBtn').onclick = () => {
+    for (const r of rows) if (r.status === 'Failed') r.status = 'Pending';
+    render(true); start();
+  };
+
+  $('exportBtn').onclick = () => {
+    const lines = ['ObjectID,FileName,Status,Detail'];
+    for (const r of rows) lines.push([r.id, csv(r.fn), r.status, csv(r.msg)].join(','));
+    const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'delete-results.csv'; a.click();
+    URL.revokeObjectURL(a.href);
+  };
+  const csv = (s) => '"' + String(s||'').replace(/"/g,'""') + '"';
+
+  // ---- rendering (counts + paged table; scales to 58k) ----
+  $('filter').onchange = () => { page = 0; render(true); };
+  $('search').oninput = () => { page = 0; render(true); };
+  $('prev').onclick = () => { if (page>0){ page--; render(true);} };
+  $('next').onclick = () => { page++; render(true); };
+
+  function counts(){
+    const c = { Pending:0, Deleting:0, Deleted:0, Gone:0, Failed:0 };
+    for (const r of rows) c[r.status]++;
+    return c;
+  }
+  function filtered(){
+    const f = $('filter').value, q = $('search').value.trim().toLowerCase();
+    return rows.filter(r =>
+      (f === 'all' || r.status === f) &&
+      (!q || r.id.toLowerCase().includes(q) || (r.fn && r.fn.toLowerCase().includes(q)))
+    );
+  }
+
+  function render(rebuildTable){
+    const c = counts();
+    const total = rows.length;
+    const doneCount = c.Deleted + c.Gone + c.Failed;
+    $('cTotal').textContent = total.toLocaleString();
+    $('cDeleted').textContent = c.Deleted.toLocaleString();
+    $('cGone').textContent = c.Gone.toLocaleString();
+    $('cFailed').textContent = c.Failed.toLocaleString();
+    $('cLeft').textContent = (c.Pending + c.Deleting).toLocaleString();
+    $('bar').style.width = total ? (100*doneCount/total).toFixed(1)+'%' : '0';
+    if (running && started){
+      const secs = (Date.now()-started)/1000;
+      const rate = doneCount/secs;
+      $('cRate').textContent = rate.toFixed(1)+'/s';
+      $('cEta').textContent = rate>0 ? Math.round((c.Pending+c.Deleting)/rate)+'s' : '–';
+    }
+    // table (paged)
+    const view = filtered();
+    const pages = Math.max(1, Math.ceil(view.length/pageSize));
+    if (page >= pages) page = pages-1;
+    const slice = view.slice(page*pageSize, page*pageSize+pageSize);
+    if (rebuildTable || running){
+      const tb = $('tbody');
+      tb.innerHTML = slice.map((r,i) => {
+        const st = r.status === 'Gone' ? 'Gone' : r.status;
+        const label = r.status === 'Gone' ? 'Already gone' : r.status;
+        return `<tr><td class="muted">${page*pageSize+i+1}</td>`+
+               `<td class="id">${r.id}</td>`+
+               `<td>${esc(r.fn)||'<span class="muted">—</span>'}</td>`+
+               `<td><span class="pill s-${st}">${label}</span></td>`+
+               `<td class="muted">${esc(r.msg)}</td></tr>`;
+      }).join('');
+      $('pageInfo').textContent = `Page ${page+1} / ${pages} · ${view.length.toLocaleString()} shown`;
+      $('viewMsg').textContent = `${total.toLocaleString()} total`;
+    }
+  }
+  function esc(s){ return String(s||'').replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
+})();
+</script>
+</body>
+</html>

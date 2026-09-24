@@ -1,9 +1,16 @@
 const cds = require('@sap/cds');
+const path = require('path');
+const express = require('express');
 const archiver = require('archiver');
 const c4c = require('./lib/c4c-client');
 const { resolveQueryAccounts, resolveAccountsBatch } = require('./lib/query-accounts');
 
 const BATCH_SIZE = 500;
+
+const isNotFound = (e) => {
+  const s = e?.code || e?.statusCode || e?.status || e?.response?.status;
+  return String(s) === '404' || /not\s*found/i.test(e?.message || '');
+};
 
 /** Make a string safe to use as a file/folder name inside a zip. */
 function safeName(s, fallback) {
@@ -113,6 +120,38 @@ cds.on('bootstrap', (app) => {
       if (!res.headersSent) res.status(502).send(`Download failed: ${e.message}`);
     }
   });
+
+  // ---- Bulk-delete tool (local/admin only) -----------------------------
+  // A self-contained page (paste/upload a list, delete with live per-row
+  // status) served at /delete-tool, backed by a single-attachment delete
+  // endpoint the page calls once per attachment. The browser drives the loop,
+  // so there is no long-running request to time out.
+  //
+  // These are raw Express routes (not behind CAP/xsuaa auth), so a destructive
+  // delete endpoint must NOT be exposed on the deployed public URL. Enabled only
+  // outside the production profile, unless ENABLE_DELETE_TOOL=true is set.
+  const isProd = (cds.env.profiles || []).includes('production') || process.env.NODE_ENV === 'production';
+  const deleteToolEnabled = process.env.ENABLE_DELETE_TOOL === 'true' || !isProd;
+
+  if (deleteToolEnabled) {
+    app.use('/delete-tool', express.static(path.join(__dirname, '..', 'app', 'delete-tool')));
+
+    app.post('/migration/delete/attachment', express.json(), async (req, res) => {
+      const id = String(req.body?.id || '').trim().toUpperCase();
+      if (!/^[0-9A-F]{32}$/.test(id)) {
+        return res.status(400).json({ status: 'error', message: 'Invalid attachment ObjectID' });
+      }
+      try {
+        await c4c.deleteAttachment(id);
+        res.json({ status: 'deleted' });
+      } catch (e) {
+        if (isNotFound(e)) return res.json({ status: 'gone' });
+        cds.log('delete').warn(`${id}: ${e.message}`);
+        res.status(502).json({ status: 'error', message: e.message });
+      }
+    });
+    cds.log('delete').info('Bulk-delete tool enabled at /delete-tool');
+  }
 });
 
 module.exports = cds.server;
