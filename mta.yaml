@@ -44,29 +44,37 @@ modules:
   #   requires:
   #     - name: cx-attachments-migrationapp-db
 
-  # ---- Fiori launchpad / app host ------------------------------------
-  - name: cx-attachments-migrationapp-app-content
-    type: com.sap.application.content
-    path: .
-    requires:
-      - name: cx-attachments-migrationapp-html5-repo-host
-        parameters:
-          content-target: true
+  # ---- Standalone approuter: single login URL for all three Fiori apps,
+  #      and reverse-proxy to the CAP service at /migration/* -------------
+  - name: cx-attachments-migrationapp-approuter
+    type: nodejs
+    path: approuter
+    parameters:
+      buildpack: nodejs_buildpack
+      memory: 256M
+      disk-quota: 1024M
     build-parameters:
-      build-result: resources
+      builder: npm
+      ignore:
+        - node_modules/
       requires:
-        - artifacts:
-            - migration.zip
-          name: migrationapp
-          target-path: resources/
-        - artifacts:
-            - jobs.zip
-          name: jobsapp
-          target-path: resources/
-        - artifacts:
-            - queries.zip
-          name: queriesapp
-          target-path: resources/
+        - name: migrationapp
+          artifacts: [ "*" ]
+          target-path: resources/migration-ui
+        - name: jobsapp
+          artifacts: [ "*" ]
+          target-path: resources/jobs-ui
+        - name: queriesapp
+          artifacts: [ "*" ]
+          target-path: resources/queries-ui
+    requires:
+      - name: cx-attachments-migrationapp-auth
+      - name: srv-api
+        group: destinations
+        properties:
+          name: srv-api
+          url: ~{srv-url}
+          forwardAuthToken: true
 
   - name: migrationapp
     type: html5
@@ -125,9 +133,3 @@ resources:
     parameters:
       service: destination
       service-plan: lite
-
-  - name: cx-attachments-migrationapp-html5-repo-host
-    type: org.cloudfoundry.managed-service
-    parameters:
-      service: html5-apps-repo
-      service-plan: app-host

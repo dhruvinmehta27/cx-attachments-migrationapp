@@ -1,0 +1,33 @@
+{
+  "welcomeFile": "/migration-ui/index.html",
+  "authenticationMethod": "route",
+  "sessionTimeout": 30,
+  "routes": [
+    {
+      "source": "^/migration/(.*)$",
+      "destination": "srv-api",
+      "authenticationType": "xsuaa",
+      "csrfProtection": true
+    },
+    {
+      "source": "^/migration-ui/(.*)$",
+      "localDir": "resources",
+      "authenticationType": "xsuaa"
+    },
+    {
+      "source": "^/jobs-ui/(.*)$",
+      "localDir": "resources",
+      "authenticationType": "xsuaa"
+    },
+    {
+      "source": "^/queries-ui/(.*)$",
+      "localDir": "resources",
+      "authenticationType": "xsuaa"
+    },
+    {
+      "source": "^(.*)$",
+      "localDir": "resources",
+      "authenticationType": "xsuaa"
+    }
+  ]
+}

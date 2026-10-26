@@ -2,6 +2,12 @@
   "xsappname": "cx-attachments-migrationapp",
   "tenant-mode": "dedicated",
   "description": "Security profile for the C4C Attachment Migration app",
+  "oauth2-configuration": {
+    "redirect-uris": [
+      "https://*.hana.ondemand.com/**",
+      "https://*.cfapps.*.hana.ondemand.com/**"
+    ]
+  },
   "scopes": [
     {
       "name": "$XSAPPNAME.Migrate",
