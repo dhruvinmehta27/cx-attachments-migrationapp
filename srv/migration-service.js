@@ -84,30 +84,6 @@ function toAttachment(r) {
   };
 }
 
-/** Map a raw C4C RFQ row onto the MigrationService.RFQs element names. */
-function toRFQ(r) {
-  return {
-    ID: r.ObjectID,
-    rfqID: r.ID,
-    name: r.Name,
-    status: r.RFQStatusText,
-    rfqType: r.RFQTypeText,
-    accountID: r.Account,
-    accountName: r.AccountName,
-    supplierID: r.SupplierID,
-    supplierName: r.SupplierName,
-    owner: r.OwnerName,
-    attachmentCount: r.NoOfAttachments != null ? Number(r.NoOfAttachments) : null,
-    createdAt: parseC4CDate(r.CreationDateTime),
-    changedAt: parseC4CDate(r.LastChangeDateTime),
-    downloadUrl: r.ObjectID ? `/migration/download/rfq/${r.ObjectID}` : null,
-    downloadLabel: 'Download attachments (ZIP)'
-  };
-}
-
-// Service fields the RFQ list toolbar search scans.
-const RFQ_SEARCH_FIELDS = ['rfqID', 'name', 'status', 'rfqType', 'accountID', 'accountName', 'supplierID', 'supplierName', 'owner'];
-
 /** Map a raw C4C RFQ-attachment row onto the MigrationService.RFQAttachments element names. */
 function toRFQAttachment(r) {
   return {
@@ -130,7 +106,7 @@ function toRFQAttachment(r) {
 /** Resolve the parent RFQ ObjectID from the request path or filter. */
 function parentRFQID(req) {
   for (const p of req.params || []) {
-    const v = p?.ID ?? p;
+    const v = (p && typeof p === 'object') ? (p.ObjectID ?? p.ID) : p;
     if (typeof v === 'string') return v;
   }
   const where = req.query?.SELECT?.where;
@@ -197,8 +173,8 @@ module.exports = class MigrationService extends cds.ApplicationService {
     });
     this.after('READ', 'RFQs', (rows) => {
       for (const r of [].concat(rows || [])) {
-        if (!r?.ID) continue;
-        r.downloadUrl = `/migration/download/rfq/${r.ID}`;
+        if (!r?.ObjectID) continue;
+        r.downloadUrl = `/migration/download/rfq/${r.ObjectID}`;
         r.downloadLabel = 'Download attachments (ZIP)';
       }
     });
@@ -286,25 +262,16 @@ module.exports = class MigrationService extends cds.ApplicationService {
       return rows;
     });
 
-    // RFQs come from the custom C4C RFQ collection. We fetch with the remote
-    // field names and map them explicitly (rather than delegating the query),
-    // because the remote has its own `ID` field that would otherwise collide
-    // with the projected key `ObjectID as ID`.
+    // RFQs are delegated to the custom C4C RFQ collection so paging/filter/sort
+    // happen server-side (only the requested page is fetched — never the whole
+    // collection, which would exhaust memory). The projection keeps the key as
+    // ObjectID (not renamed to ID) so it never collides with the remote's own
+    // `ID` field. The custom service has no free-text search, so a $search is
+    // stripped to avoid a 500.
     this.on('READ', 'RFQs', async (req) => {
-      // Single RFQ (object page / key access): /RFQs(<ObjectID>)
-      const params = req.params || [];
-      const key = params.length ? (params.at(-1)?.ID ?? params.at(-1)) : undefined;
-      if (typeof key === 'string') {
-        const row = await c4c.getRFQ(key);
-        return row ? toRFQ(row) : null;
-      }
-
-      // List: fetch all RFQs, then apply the Fiori query (search, filter, sort,
-      // paging) in memory and return the filtered total for correct paging.
-      const all = (await c4c.listAllRFQs()).map(toRFQ);
-      const { rows, count } = applyQuery(all, req.query.SELECT, [], RFQ_SEARCH_FIELDS);
-      rows.$count = count;
-      return rows;
+      const RFQ = await cds.connect.to('C4C_RFQ');
+      if (req.query?.SELECT?.search) delete req.query.SELECT.search;
+      return RFQ.run(req.query);
     });
 
     // RFQ attachments are only reachable by navigating from their RFQ.

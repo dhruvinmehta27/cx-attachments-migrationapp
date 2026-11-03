@@ -67,7 +67,7 @@ service MigrationService @(path: '/migration', requires: 'authenticated-user') {
   @readonly
   @cds.redirection.target
   entity RFQs as projection on C4C_RFQ.RFQRootCollection {
-    key ObjectID           as ID,
+    key ObjectID,
         ID                 as rfqID,
         Name               as name,
         RFQStatusText      as status,
