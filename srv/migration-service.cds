@@ -1,5 +1,6 @@
 using { cx.migration as db } from '../db/schema';
 using { C4C_ODATA } from './external/C4C_ODATA';
+using { C4C_RFQ } from './external/C4C_RFQ';
 
 /**
  * Service that lets a user browse SAP C4C accounts and their attachments
@@ -59,6 +60,44 @@ service MigrationService @(path: '/migration', requires: 'authenticated-user') {
     ) returns MigrationItems;
     /** Delete this attachment from C4C (post-migration cleanup). */
     action deleteAttachment() returns Boolean;
+  };
+
+  // ---- RFQs (custom C4C object) + their attachments -------------------
+
+  @readonly
+  @cds.redirection.target
+  entity RFQs as projection on C4C_RFQ.RFQRootCollection {
+    key ObjectID           as ID,
+        ID                 as rfqID,
+        Name               as name,
+        RFQStatusText      as status,
+        RFQTypeText        as rfqType,
+        Account            as accountID,
+        AccountName        as accountName,
+        OwnerName          as owner,
+        NoOfAttachments    as attachmentCount,
+        CreationDateTime   as createdAt,
+        LastChangeDateTime as changedAt,
+        null               as downloadUrl : String(2048),   // link to the per-RFQ zip
+        null               as downloadLabel : String(60),   // visible link text (set in handler)
+        RFQAttachments     as attachments : redirected to RFQAttachments
+  };
+
+  @readonly
+  entity RFQAttachments as projection on C4C_RFQ.RFQAttachmentsCollection {
+    key ObjectID         as ID,
+        ParentObjectID   as rfqObjectID,
+        RFQRootID        as rfqID,
+        Name             as fileName,
+        MimeType         as mimeType,
+        SizeInkB         as fileSizeKB,
+        CategoryCodeText as category,
+        TypeCodeText     as documentType,
+        DocumentLink     as documentLink,
+        CreatedOn        as createdAt,
+        CreatedBy        as createdBy,
+        Binary           as content,            // streamed on demand (media)
+        null             as downloadUrl : String(2048)
   };
 
   // ---- Saved account queries (create / save / organize) ---------------

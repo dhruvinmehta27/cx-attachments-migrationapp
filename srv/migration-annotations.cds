@@ -138,6 +138,102 @@ annotate MigrationService.Attachments with {
 };
 
 // =====================================================================
+//  RFQs - List Report + Object Page (browse + ZIP download)
+// =====================================================================
+annotate MigrationService.RFQs with @(
+  UI: {
+    SelectionFields: [ rfqID, name, status, accountID, accountName ],
+    LineItem: [
+      { Value: rfqID,           Label: 'RFQ ID' },
+      { Value: name,            Label: 'Name' },
+      { Value: status,          Label: 'Status' },
+      { Value: accountName,     Label: 'Account' },
+      { Value: attachmentCount, Label: 'Attachments' },
+      { Value: changedAt,       Label: 'Last Changed' },
+      { $Type: 'UI.DataFieldWithUrl', Value: downloadLabel, Url: downloadUrl, Label: 'Download' }
+    ],
+    HeaderInfo: {
+      TypeName: 'RFQ',
+      TypeNamePlural: 'RFQs',
+      Title: { Value: name },
+      Description: { Value: rfqID }
+    },
+    Identification: [
+      { $Type: 'UI.DataFieldWithUrl', Value: downloadLabel, Url: downloadUrl, Label: 'Download' }
+    ],
+    Facets: [
+      {
+        $Type: 'UI.ReferenceFacet',
+        ID: 'GeneralInfo',
+        Label: 'General Information',
+        Target: '@UI.FieldGroup#General'
+      },
+      {
+        $Type: 'UI.ReferenceFacet',
+        ID: 'Attachments',
+        Label: 'Attachments',
+        Target: 'attachments/@UI.LineItem'
+      }
+    ],
+    FieldGroup#General: {
+      Data: [
+        { Value: rfqID,       Label: 'RFQ ID' },
+        { Value: name,        Label: 'Name' },
+        { Value: status,      Label: 'Status' },
+        { Value: rfqType,     Label: 'Type' },
+        { Value: accountID,   Label: 'Account ID' },
+        { Value: accountName, Label: 'Account' },
+        { Value: owner,       Label: 'Owner' },
+        { Value: attachmentCount, Label: 'Attachments' },
+        { Value: createdAt,   Label: 'Created On' },
+        { Value: changedAt,   Label: 'Last Changed' },
+        { $Type: 'UI.DataFieldWithUrl', Value: downloadLabel, Url: downloadUrl, Label: 'Download' }
+      ]
+    }
+  }
+);
+
+annotate MigrationService.RFQs with {
+  rfqID           @title: 'RFQ ID';
+  name            @title: 'Name';
+  status          @title: 'Status';
+  rfqType         @title: 'Type';
+  accountID       @title: 'Account ID';
+  accountName     @title: 'Account';
+  owner           @title: 'Owner';
+  attachmentCount @title: 'Attachments';
+  createdAt       @title: 'Created On';
+  changedAt       @title: 'Last Changed';
+};
+
+annotate MigrationService.RFQAttachments with @(
+  UI: {
+    LineItem: [
+      // File name is a link that opens / downloads the document content.
+      { $Type: 'UI.DataFieldWithUrl', Value: fileName, Url: downloadUrl, Label: 'File Name' },
+      { Value: documentType, Label: 'Document Type' },
+      { Value: mimeType,     Label: 'Type' },
+      { Value: fileSizeKB,   Label: 'Size (kB)' },
+      { Value: category,     Label: 'Category' },
+      { Value: createdAt,    Label: 'Created On' }
+    ]
+  }
+);
+
+annotate MigrationService.RFQAttachments with {
+  fileName     @title: 'File Name';
+  mimeType     @title: 'MIME Type';
+  fileSizeKB   @title: 'Size (kB)';
+  category     @title: 'Category';
+  documentType @title: 'Document Type';
+  createdAt    @title: 'Created On';
+  createdBy    @title: 'Created By';
+  content      @Core.MediaType: mimeType
+               @Core.ContentDisposition.Filename: fileName
+               @Core.ContentDisposition.Type: 'inline';
+};
+
+// =====================================================================
 //  Migration Jobs - audit log List Report + Object Page
 // =====================================================================
 annotate MigrationService.MigrationJobs with @(

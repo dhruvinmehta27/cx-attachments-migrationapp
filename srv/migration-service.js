@@ -84,6 +84,42 @@ function toAttachment(r) {
   };
 }
 
+/** Map a raw C4C RFQ-attachment row onto the MigrationService.RFQAttachments element names. */
+function toRFQAttachment(r) {
+  return {
+    ID: r.ObjectID,
+    rfqObjectID: r.ParentObjectID,
+    rfqID: r.RFQRootID,
+    fileName: r.Name,
+    mimeType: r.MimeType,
+    fileSizeKB: r.SizeInkB != null ? Number(r.SizeInkB) : null,
+    category: r.CategoryCodeText,
+    documentType: r.TypeCodeText,
+    documentLink: r.DocumentLink,
+    createdAt: parseC4CDate(r.CreatedOn),
+    createdBy: r.CreatedBy,
+    // Link the Fiori file-name cell to the streamed content of this attachment.
+    downloadUrl: `/migration/RFQs('${r.ParentObjectID}')/attachments('${r.ObjectID}')/content`
+  };
+}
+
+/** Resolve the parent RFQ ObjectID from the request path or filter. */
+function parentRFQID(req) {
+  for (const p of req.params || []) {
+    const v = p?.ID ?? p;
+    if (typeof v === 'string') return v;
+  }
+  const where = req.query?.SELECT?.where;
+  if (Array.isArray(where)) {
+    for (let i = 0; i + 2 < where.length; i++) {
+      if (where[i]?.ref?.at(-1) === 'rfqObjectID' && where[i + 1] === '=') {
+        return where[i + 2]?.val;
+      }
+    }
+  }
+  return undefined;
+}
+
 /** Resolve the parent account ObjectID from the request path or filter. */
 function parentAccountID(req) {
   // Navigation read: /Accounts(<id>)/attachments[(<attId>)]
@@ -133,6 +169,13 @@ module.exports = class MigrationService extends cds.ApplicationService {
         if (!r?.ID) continue;
         r.downloadUrl = `/migration/download/query/${r.ID}`;
         r.downloadLabel = 'Download (ZIP, folder per account)';
+      }
+    });
+    this.after('READ', 'RFQs', (rows) => {
+      for (const r of [].concat(rows || [])) {
+        if (!r?.ID) continue;
+        r.downloadUrl = `/migration/download/rfq/${r.ID}`;
+        r.downloadLabel = 'Download attachments (ZIP)';
       }
     });
 
@@ -215,6 +258,47 @@ module.exports = class MigrationService extends cds.ApplicationService {
       // filtered total so the header count and "More" paging are both correct.
       const all = (await c4c.listAttachments(accountObjectID)).map(toAttachment);
       const { rows, count } = applyQuery(all, req.query.SELECT, ['accountObjectID']);
+      rows.$count = count;
+      return rows;
+    });
+
+    // RFQs come straight from the custom C4C RFQ collection (queryable at root).
+    this.on('READ', 'RFQs', async (req) => {
+      const RFQ = await cds.connect.to('C4C_RFQ');
+      return RFQ.run(req.query);
+    });
+
+    // RFQ attachments are only reachable by navigating from their RFQ.
+    this.on('READ', 'RFQAttachments', async (req) => {
+      const rfqObjectID = parentRFQID(req);
+      if (!rfqObjectID) {
+        return req.reject(400, 'RFQ attachments can only be read in the context of an RFQ.');
+      }
+      const single = (req.params?.length ?? 0) >= 2;
+
+      // Media stream request: /RFQs(<id>)/attachments(<attId>)/content
+      const cols = req.query?.SELECT?.columns;
+      const wantsContent = Array.isArray(cols) && cols.some(c => c.ref?.at(-1) === 'content');
+      if (wantsContent && single) {
+        const att = await c4c.getRFQAttachment(rfqObjectID, req.params.at(-1).ID, { includeBinary: true });
+        if (!att) return req.reject(404, 'Attachment not found in C4C.');
+        return {
+          value: Readable.from(c4c.decodeBinary(att.Binary)),
+          $mediaContentType: att.MimeType || 'application/octet-stream',
+          $mediaContentDispositionFilename: att.Name,
+          $mediaContentDispositionType: 'inline'
+        };
+      }
+
+      if (single) {
+        const rows = await c4c.listRFQAttachments(rfqObjectID, { onlyIDs: [req.params.at(-1).ID] });
+        return rows.map(toRFQAttachment)[0] ?? null;
+      }
+
+      // List: fetch all of the RFQ's attachments, then apply the Fiori query
+      // (search, column filters, sort, paging) in memory and return the count.
+      const all = (await c4c.listRFQAttachments(rfqObjectID)).map(toRFQAttachment);
+      const { rows, count } = applyQuery(all, req.query.SELECT, ['rfqObjectID']);
       rows.$count = count;
       return rows;
     });

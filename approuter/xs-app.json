@@ -25,6 +25,11 @@
       "authenticationType": "xsuaa"
     },
     {
+      "source": "^/rfq-ui/(.*)$",
+      "localDir": "resources",
+      "authenticationType": "xsuaa"
+    },
+    {
       "source": "^(.*)$",
       "localDir": "resources",
       "authenticationType": "xsuaa"

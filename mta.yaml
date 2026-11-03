@@ -67,6 +67,9 @@ modules:
         - name: queriesapp
           artifacts: [ "*" ]
           target-path: resources/queries-ui
+        - name: rfqapp
+          artifacts: [ "*" ]
+          target-path: resources/rfq-ui
     requires:
       - name: cx-attachments-migrationapp-auth
       - name: srv-api
@@ -101,6 +104,17 @@ modules:
   - name: queriesapp
     type: html5
     path: app/queries
+    build-parameters:
+      build-result: dist
+      builder: custom
+      commands:
+        - npm install
+        - npm run build:cf
+      supported-platforms: []
+
+  - name: rfqapp
+    type: html5
+    path: app/rfq
     build-parameters:
       build-result: dist
       builder: custom

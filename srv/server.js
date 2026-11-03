@@ -59,6 +59,46 @@ async function streamAccountsZip(res, accounts, archiveName) {
   await archive.finalize();
 }
 
+/**
+ * Stream a zip of the given RFQs' attachments to the response.
+ * Layout: <RFQ ID>/<fileName> — one folder per RFQ.
+ */
+async function streamRFQsZip(res, rfqs, archiveName) {
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', `attachment; filename="${safeName(archiveName, 'rfq-attachments')}.zip"`);
+
+  const archive = archiver('zip', { zlib: { level: 0 } });
+  archive.on('warning', err => cds.log('download').warn(err));
+  archive.on('error', err => { cds.log('download').error(err); res.destroy(err); });
+  archive.pipe(res);
+
+  for (const rfq of rfqs) {
+    const folder = safeName(rfq.ID?.trim() || rfq.ObjectID, rfq.ObjectID);
+    let attachments = [];
+    try {
+      attachments = await c4c.listRFQAttachments(rfq.ObjectID, { includeBinary: true });
+    } catch (e) {
+      cds.log('download').warn(`RFQ ${folder}: ${e.message}`);
+      continue;
+    }
+    const used = new Set();
+    for (const att of attachments) {
+      let name = safeName(att.Name, att.ObjectID);
+      if (used.has(name)) {
+        const dot = name.lastIndexOf('.');
+        const base = dot > 0 ? name.slice(0, dot) : name;
+        const ext = dot > 0 ? name.slice(dot) : '';
+        let i = 2;
+        while (used.has(`${base} (${i})${ext}`)) i++;
+        name = `${base} (${i})${ext}`;
+      }
+      used.add(name);
+      archive.append(c4c.decodeBinary(att.Binary), { name: `${folder}/${name}` });
+    }
+  }
+  await archive.finalize();
+}
+
 cds.on('bootstrap', (app) => {
   // Download one account's attachments, foldered by Account ID.
   app.get('/migration/download/account/:objectID', async (req, res) => {
@@ -115,6 +155,37 @@ cds.on('bootstrap', (app) => {
       const accounts = await resolveAccountsBatch(q, { skip: batchNo * size, top: size });
       if (!accounts.length) return res.status(404).send('No accounts in this batch.');
       await streamAccountsZip(res, accounts, `${q.queryName || 'query'}_batch_${batchNo + 1}`);
+    } catch (e) {
+      cds.log('download').error(e);
+      if (!res.headersSent) res.status(502).send(`Download failed: ${e.message}`);
+    }
+  });
+
+  // Download one RFQ's attachments, foldered by RFQ ID.
+  app.get('/migration/download/rfq/:objectID', async (req, res) => {
+    try {
+      const rfq = await c4c.getRFQ(req.params.objectID);
+      if (!rfq) return res.status(404).send('RFQ not found in C4C.');
+      await streamRFQsZip(res, [rfq], rfq.ID?.trim() || 'rfq');
+    } catch (e) {
+      cds.log('download').error(e);
+      if (!res.headersSent) res.status(502).send(`Download failed: ${e.message}`);
+    }
+  });
+
+  // Download a hand-picked set of RFQs (multi-select), foldered by RFQ ID.
+  // ?ids=<ObjectID>,<ObjectID>,...
+  app.get('/migration/download/rfqs', async (req, res) => {
+    try {
+      const raw = [].concat(req.query.ids || [], req.query.id || []).join(',');
+      const objectIDs = raw.split(',').map(s => s.trim()).filter(Boolean);
+      if (!objectIDs.length) return res.status(400).send('No RFQs selected.');
+      const rfqs = await c4c.findRFQsByObjectIDs(objectIDs);
+      if (!rfqs.length) return res.status(404).send('Selected RFQs not found in C4C.');
+      const name = rfqs.length === 1
+        ? (rfqs[0].ID?.trim() || 'rfq')
+        : `selected_${rfqs.length}_rfqs`;
+      await streamRFQsZip(res, rfqs, name);
     } catch (e) {
       cds.log('download').error(e);
       if (!res.headersSent) res.status(502).send(`Download failed: ${e.message}`);

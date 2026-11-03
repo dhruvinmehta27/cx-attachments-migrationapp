@@ -230,6 +230,80 @@ class C4CClient {
     return { total: rows.length, deleted, failed: errors.length, errors };
   }
 
+  // ---- RFQs (custom C4C object: /sap/c4c/odata/cust/v1/zrfq) ----------
+
+  async connectRFQ() {
+    if (!this._rfq) this._rfq = await cds.connect.to('C4C_RFQ');
+    return this._rfq;
+  }
+
+  /** Read a single RFQ by its C4C ObjectID. */
+  async getRFQ(objectID) {
+    const rfq = await this.connectRFQ();
+    const { RFQRootCollection } = rfq.entities;
+    return rfq.run(SELECT.one.from(RFQRootCollection).where({ ObjectID: objectID }));
+  }
+
+  /** Fetch RFQ header records for a list of ObjectIDs (chunked OR queries). */
+  async findRFQsByObjectIDs(objectIDs, { chunkSize = 10 } = {}) {
+    if (!objectIDs?.length) return [];
+    const rfq = await this.connectRFQ();
+    const { RFQRootCollection } = rfq.entities;
+    const cols = ['ObjectID', 'ID', 'Name', 'Account', 'AccountName'];
+    const out = new Map();
+    for (let i = 0; i < objectIDs.length; i += chunkSize) {
+      const chunk = objectIDs.slice(i, i + chunkSize);
+      const xpr = [];
+      chunk.forEach((id, j) => {
+        if (j) xpr.push('or');
+        xpr.push({ ref: ['ObjectID'] }, '=', { val: id });
+      });
+      const rows = await rfq.run(SELECT.from(RFQRootCollection).columns(...cols).where(xpr));
+      for (const r of rows) out.set(r.ObjectID, r);
+    }
+    return [...out.values()];
+  }
+
+  /**
+   * List ALL attachments of an RFQ by navigating from the RFQ. Pages through
+   * the C4C collection ($top/$skip) so the full set is returned.
+   * @param {string} rfqObjectID  C4C ObjectID of the parent RFQ
+   * @param {object} [opts]
+   * @param {string[]} [opts.onlyIDs]      optional subset of attachment ObjectIDs
+   * @param {boolean} [opts.includeBinary] include the base64 Binary payload
+   * @returns {Promise<object[]>} raw C4C attachment rows
+   */
+  async listRFQAttachments(rfqObjectID, { onlyIDs, includeBinary } = {}) {
+    const rfq = await this.connectRFQ();
+    const fields = [
+      'ObjectID', 'ParentObjectID', 'RFQRootID', 'Name', 'MimeType',
+      'SizeInkB', 'DocumentLink', 'CategoryCode', 'CategoryCodeText',
+      'TypeCode', 'TypeCodeText', 'CreatedOn', 'CreatedBy', 'Title'
+    ];
+    if (includeBinary) fields.push('Binary');
+    const base =
+      `/RFQRootCollection('${encodeURIComponent(rfqObjectID)}')` +
+      `/RFQAttachments?$select=${fields.join(',')}`;
+    const pageSize = 1000;
+    let rows = [];
+    for (let skip = 0; ; skip += pageSize) {
+      const res = await rfq.send({ method: 'GET', path: `${base}&$top=${pageSize}&$skip=${skip}` });
+      const page = this._rows(res);
+      rows = rows.concat(page);
+      if (page.length < pageSize) break;
+    }
+    if (onlyIDs?.length) rows = rows.filter(r => onlyIDs.includes(r.ObjectID));
+    return rows;
+  }
+
+  /** Read the metadata + binary of one RFQ attachment (via the parent RFQ). */
+  async getRFQAttachment(rfqObjectID, attachmentObjectID, { includeBinary } = {}) {
+    const [row] = await this.listRFQAttachments(rfqObjectID, {
+      onlyIDs: [attachmentObjectID], includeBinary
+    });
+    return row || null;
+  }
+
   /** Decode a C4C base64 Binary value into a Buffer. */
   decodeBinary(binary) {
     if (binary == null) return Buffer.alloc(0);

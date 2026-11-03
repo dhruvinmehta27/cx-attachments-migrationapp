@@ -46,6 +46,21 @@
           "credentials": { "destination": "C4C_PROD_HARDCODED", "path": "/sap/c4c/odata/v1/c4codataapi" }
         }
       },
+      "C4C_RFQ": {
+        "kind": "odata-v2",
+        "model": "srv/external/C4C_RFQ",
+        "csrf": true,
+        "csrfInBatch": true,
+        "[development]": {
+          "credentials": { "url": "https://my332854.crm.ondemand.com/sap/c4c/odata/cust/v1/zrfq" }
+        },
+        "[hybrid]": {
+          "credentials": { "destination": "C4C_PROD_HARDCODED", "path": "/sap/c4c/odata/cust/v1/zrfq" }
+        },
+        "[production]": {
+          "credentials": { "destination": "C4C_PROD_HARDCODED", "path": "/sap/c4c/odata/cust/v1/zrfq" }
+        }
+      },
       "TARGET_ENDPOINT": {
         "kind": "rest",
         "[production]": {
@@ -57,7 +72,8 @@
   "sapux": [
     "app/migration",
     "app/jobs",
-    "app/queries"
+    "app/queries",
+    "app/rfq"
   ],
   "private": true
 }
