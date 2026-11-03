@@ -274,8 +274,8 @@ class C4CClient {
     const { RFQRootCollection } = rfq.entities;
     const cols = [
       'ObjectID', 'ID', 'Name', 'RFQStatusText', 'RFQTypeText',
-      'Account', 'AccountName', 'OwnerName', 'NoOfAttachments',
-      'CreationDateTime', 'LastChangeDateTime'
+      'Account', 'AccountName', 'SupplierID', 'SupplierName', 'OwnerName',
+      'NoOfAttachments', 'CreationDateTime', 'LastChangeDateTime'
     ];
     const out = [];
     for (let skip = 0; ; skip += pageSize) {

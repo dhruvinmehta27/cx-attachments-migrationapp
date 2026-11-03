@@ -74,6 +74,8 @@ service MigrationService @(path: '/migration', requires: 'authenticated-user') {
         RFQTypeText        as rfqType,
         Account            as accountID,
         AccountName        as accountName,
+        SupplierID         as supplierID,
+        SupplierName       as supplierName,
         OwnerName          as owner,
         NoOfAttachments    as attachmentCount,
         CreationDateTime   as createdAt,

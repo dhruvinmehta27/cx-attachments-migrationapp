@@ -142,11 +142,12 @@ annotate MigrationService.Attachments with {
 // =====================================================================
 annotate MigrationService.RFQs with @(
   UI: {
-    SelectionFields: [ rfqID, name, status, accountID, accountName ],
+    SelectionFields: [ rfqID, status, supplierName, accountName, rfqType, name ],
     LineItem: [
       { Value: rfqID,           Label: 'RFQ ID' },
       { Value: name,            Label: 'Name' },
       { Value: status,          Label: 'Status' },
+      { Value: supplierName,    Label: 'Supplier' },
       { Value: accountName,     Label: 'Account' },
       { Value: attachmentCount, Label: 'Attachments' },
       { Value: changedAt,       Label: 'Last Changed' },
@@ -183,6 +184,8 @@ annotate MigrationService.RFQs with @(
         { Value: rfqType,     Label: 'Type' },
         { Value: accountID,   Label: 'Account ID' },
         { Value: accountName, Label: 'Account' },
+        { Value: supplierID,   Label: 'Supplier ID' },
+        { Value: supplierName, Label: 'Supplier' },
         { Value: owner,       Label: 'Owner' },
         { Value: attachmentCount, Label: 'Attachments' },
         { Value: createdAt,   Label: 'Created On' },
@@ -200,6 +203,8 @@ annotate MigrationService.RFQs with {
   rfqType         @title: 'Type';
   accountID       @title: 'Account ID';
   accountName     @title: 'Account';
+  supplierID      @title: 'Supplier ID';
+  supplierName    @title: 'Supplier';
   owner           @title: 'Owner';
   attachmentCount @title: 'Attachments';
   createdAt       @title: 'Created On';

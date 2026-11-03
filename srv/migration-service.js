@@ -94,6 +94,8 @@ function toRFQ(r) {
     rfqType: r.RFQTypeText,
     accountID: r.Account,
     accountName: r.AccountName,
+    supplierID: r.SupplierID,
+    supplierName: r.SupplierName,
     owner: r.OwnerName,
     attachmentCount: r.NoOfAttachments != null ? Number(r.NoOfAttachments) : null,
     createdAt: parseC4CDate(r.CreationDateTime),
@@ -104,7 +106,7 @@ function toRFQ(r) {
 }
 
 // Service fields the RFQ list toolbar search scans.
-const RFQ_SEARCH_FIELDS = ['rfqID', 'name', 'status', 'rfqType', 'accountID', 'accountName', 'owner'];
+const RFQ_SEARCH_FIELDS = ['rfqID', 'name', 'status', 'rfqType', 'accountID', 'accountName', 'supplierID', 'supplierName', 'owner'];
 
 /** Map a raw C4C RFQ-attachment row onto the MigrationService.RFQAttachments element names. */
 function toRFQAttachment(r) {

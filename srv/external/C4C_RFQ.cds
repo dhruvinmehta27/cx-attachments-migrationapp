@@ -24,6 +24,8 @@ service C4C_RFQ {
         RFQTypeText         : String(120);
         Account            : String(10);
         AccountName        : String(255);
+        SupplierID         : String(60);
+        SupplierName       : String(255);
         OwnerName          : String(255);
         NoOfAttachments    : Decimal(31, 14);
         CreationDateTime   : Timestamp;
