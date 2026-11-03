@@ -88,6 +88,7 @@ modules:
       commands:
         - npm install
         - npm run build:cf
+        - rm -rf node_modules
       supported-platforms: []
 
   - name: jobsapp
@@ -99,6 +100,7 @@ modules:
       commands:
         - npm install
         - npm run build:cf
+        - rm -rf node_modules
       supported-platforms: []
 
   - name: queriesapp
@@ -110,6 +112,7 @@ modules:
       commands:
         - npm install
         - npm run build:cf
+        - rm -rf node_modules
       supported-platforms: []
 
   - name: rfqapp
@@ -121,6 +124,7 @@ modules:
       commands:
         - npm install
         - npm run build:cf
+        - rm -rf node_modules
       supported-platforms: []
 
 resources:
