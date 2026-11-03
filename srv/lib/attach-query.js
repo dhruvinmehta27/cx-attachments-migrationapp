@@ -117,9 +117,9 @@ function searchTokens(search) {
   return out.join(' ').toLowerCase().split(/\s+/).filter(Boolean);
 }
 
-function matchesSearch(row, tokens) {
+function matchesSearch(row, tokens, fields = SEARCH_FIELDS) {
   if (!tokens.length) return true;
-  const hay = SEARCH_FIELDS.map(f => norm(row[f])).join(' ');
+  const hay = fields.map(f => norm(row[f])).join(' ');
   return tokens.every(t => hay.includes(t));
 }
 
@@ -152,11 +152,11 @@ function applyOrderBy(rows, orderBy) {
  *   (e.g. the parent foreign key on a navigation read)
  * @returns {{ rows: object[], count: number }}
  */
-function applyQuery(rows, SELECT = {}, ignoreRefs = []) {
+function applyQuery(rows, SELECT = {}, ignoreRefs = [], searchFields = SEARCH_FIELDS) {
   let out = rows;
 
   const tokens = searchTokens(SELECT.search);
-  if (tokens.length) out = out.filter(r => matchesSearch(r, tokens));
+  if (tokens.length) out = out.filter(r => matchesSearch(r, tokens, searchFields));
 
   const where = stripRefs(SELECT.where, ignoreRefs);
   if (where && where.length) out = out.filter(r => evalWhere(where, r));

@@ -265,6 +265,28 @@ class C4CClient {
   }
 
   /**
+   * List RFQ headers, paging through the whole collection. Queried against the
+   * external entity with its own field names (no projection), so the service
+   * layer maps them explicitly and the `ID`/`ObjectID` names never collide.
+   */
+  async listAllRFQs({ pageSize = 1000, max = 100000 } = {}) {
+    const rfq = await this.connectRFQ();
+    const { RFQRootCollection } = rfq.entities;
+    const cols = [
+      'ObjectID', 'ID', 'Name', 'RFQStatusText', 'RFQTypeText',
+      'Account', 'AccountName', 'OwnerName', 'NoOfAttachments',
+      'CreationDateTime', 'LastChangeDateTime'
+    ];
+    const out = [];
+    for (let skip = 0; ; skip += pageSize) {
+      const page = await rfq.run(SELECT.from(RFQRootCollection).columns(...cols).limit(pageSize, skip));
+      out.push(...page);
+      if (page.length < pageSize || out.length >= max) break;
+    }
+    return out;
+  }
+
+  /**
    * List ALL attachments of an RFQ by navigating from the RFQ. Pages through
    * the C4C collection ($top/$skip) so the full set is returned.
    * @param {string} rfqObjectID  C4C ObjectID of the parent RFQ

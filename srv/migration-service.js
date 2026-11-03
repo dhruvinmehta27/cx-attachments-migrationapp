@@ -84,6 +84,28 @@ function toAttachment(r) {
   };
 }
 
+/** Map a raw C4C RFQ row onto the MigrationService.RFQs element names. */
+function toRFQ(r) {
+  return {
+    ID: r.ObjectID,
+    rfqID: r.ID,
+    name: r.Name,
+    status: r.RFQStatusText,
+    rfqType: r.RFQTypeText,
+    accountID: r.Account,
+    accountName: r.AccountName,
+    owner: r.OwnerName,
+    attachmentCount: r.NoOfAttachments != null ? Number(r.NoOfAttachments) : null,
+    createdAt: parseC4CDate(r.CreationDateTime),
+    changedAt: parseC4CDate(r.LastChangeDateTime),
+    downloadUrl: r.ObjectID ? `/migration/download/rfq/${r.ObjectID}` : null,
+    downloadLabel: 'Download attachments (ZIP)'
+  };
+}
+
+// Service fields the RFQ list toolbar search scans.
+const RFQ_SEARCH_FIELDS = ['rfqID', 'name', 'status', 'rfqType', 'accountID', 'accountName', 'owner'];
+
 /** Map a raw C4C RFQ-attachment row onto the MigrationService.RFQAttachments element names. */
 function toRFQAttachment(r) {
   return {
@@ -262,10 +284,25 @@ module.exports = class MigrationService extends cds.ApplicationService {
       return rows;
     });
 
-    // RFQs come straight from the custom C4C RFQ collection (queryable at root).
+    // RFQs come from the custom C4C RFQ collection. We fetch with the remote
+    // field names and map them explicitly (rather than delegating the query),
+    // because the remote has its own `ID` field that would otherwise collide
+    // with the projected key `ObjectID as ID`.
     this.on('READ', 'RFQs', async (req) => {
-      const RFQ = await cds.connect.to('C4C_RFQ');
-      return RFQ.run(req.query);
+      // Single RFQ (object page / key access): /RFQs(<ObjectID>)
+      const params = req.params || [];
+      const key = params.length ? (params.at(-1)?.ID ?? params.at(-1)) : undefined;
+      if (typeof key === 'string') {
+        const row = await c4c.getRFQ(key);
+        return row ? toRFQ(row) : null;
+      }
+
+      // List: fetch all RFQs, then apply the Fiori query (search, filter, sort,
+      // paging) in memory and return the filtered total for correct paging.
+      const all = (await c4c.listAllRFQs()).map(toRFQ);
+      const { rows, count } = applyQuery(all, req.query.SELECT, [], RFQ_SEARCH_FIELDS);
+      rows.$count = count;
+      return rows;
     });
 
     // RFQ attachments are only reachable by navigating from their RFQ.
