@@ -106,28 +106,26 @@ function toRFQ(r) {
 }
 
 /**
- * If a CQN `where` is purely `<field> = v1 or <field> = v2 or ...` (optionally
- * wrapped in one xpr group), return [v1, v2, ...]; otherwise null. Used to catch
- * the huge multi-value RFQ-ID filter that C4C's custom service 500s on.
+ * Collect every `<field> = <val>` value appearing anywhere in a CQN `where`
+ * (recursing into xpr groups), regardless of how it is combined with other
+ * conditions. Used to catch the huge multi-value RFQ-ID filter that C4C's
+ * custom service 500s on — even when it's ANDed with other filters.
  */
-function orEqualityValues(where, field) {
-  if (!Array.isArray(where)) return null;
-  let tokens = where;
-  if (tokens.length === 1 && tokens[0] && tokens[0].xpr) tokens = tokens[0].xpr;
-  const vals = [];
-  let i = 0;
-  while (i < tokens.length) {
-    const a = tokens[i], op = tokens[i + 1], b = tokens[i + 2];
-    if (a && a.ref && a.ref[a.ref.length - 1] === field && op === '=' && b && ('val' in b)) {
-      vals.push(b.val);
-      i += 3;
-      if (i < tokens.length) {
-        if (String(tokens[i]).toLowerCase() === 'or') { i += 1; continue; }
-        return null;
+function collectEqualityValues(where, field) {
+  const out = [];
+  const walk = (tokens) => {
+    if (!Array.isArray(tokens)) return;
+    for (let i = 0; i < tokens.length; i++) {
+      const t = tokens[i];
+      if (t && t.xpr) { walk(t.xpr); continue; }
+      if (t && t.ref && t.ref[t.ref.length - 1] === field) {
+        const op = tokens[i + 1], val = tokens[i + 2];
+        if ((op === '=' || op === 'eq') && val && ('val' in val)) out.push(val.val);
       }
-    } else return null;
-  }
-  return vals.length ? vals : null;
+    }
+  };
+  walk(where);
+  return out.length ? out : null;
 }
 
 /**
@@ -344,13 +342,14 @@ module.exports = class MigrationService extends cds.ApplicationService {
         req.query.SELECT.where = rewriteHasAttachments(req.query.SELECT.where);
       }
 
-      // A very large multi-value RFQ-ID filter (e.g. a pasted list / select-all)
-      // makes C4C's custom service return 500, so fetch the matching RFQs in
-      // small chunks, then sort/page in memory (bounded by the filter).
-      const ids = orEqualityValues(req.query.SELECT?.where, 'rfqID');
+      // A very large multi-value RFQ-ID filter (e.g. a pasted list / select-all,
+      // possibly ANDed with other filters like attachment count) makes C4C's
+      // custom service return 500. Fetch the matching RFQs in small chunks, then
+      // apply the full filter (incl. attachment count), sort and page in memory.
+      const ids = collectEqualityValues(req.query.SELECT?.where, 'rfqID');
       if (ids && ids.length > 30) {
         const all = (await c4c.listRFQsByIDs(ids)).map(toRFQ);
-        const { rows, count } = applyQuery(all, { ...req.query.SELECT, where: undefined }, []);
+        const { rows, count } = applyQuery(all, req.query.SELECT, []);
         rows.$count = count;
         return rows;
       }
