@@ -297,10 +297,12 @@ class C4CClient {
   }
 
   /**
-   * Fetch RFQ headers for a list of human RFQ IDs, in small chunks (OR-ed
-   * equality) so the custom C4C service never gets an over-large $filter.
+   * Fetch RFQ headers for a list of human RFQ IDs. Splits into chunks small
+   * enough for the custom C4C service to accept (it 500s on very large $filter
+   * OR-lists) and runs them with bounded concurrency so even a few thousand IDs
+   * resolve in a few seconds rather than timing out.
    */
-  async listRFQsByIDs(ids, { chunkSize = 20 } = {}) {
+  async listRFQsByIDs(ids, { chunkSize = 75, concurrency = 6 } = {}) {
     if (!ids?.length) return [];
     const rfq = await this.connectRFQ();
     const { RFQRootCollection } = rfq.entities;
@@ -309,17 +311,24 @@ class C4CClient {
       'Account', 'AccountName', 'SupplierID', 'SupplierName', 'OwnerName',
       'NoOfAttachments', 'CreationDateTime', 'LastChangeDateTime'
     ];
+    const chunks = [];
+    for (let i = 0; i < ids.length; i += chunkSize) chunks.push(ids.slice(i, i + chunkSize));
+
     const out = new Map();
-    for (let i = 0; i < ids.length; i += chunkSize) {
-      const chunk = ids.slice(i, i + chunkSize);
-      const xpr = [];
-      chunk.forEach((v, j) => {
-        if (j) xpr.push('or');
-        xpr.push({ ref: ['ID'] }, '=', { val: v });
-      });
-      const rows = await rfq.run(SELECT.from(RFQRootCollection).columns(...cols).where(xpr));
-      for (const r of rows) out.set(r.ObjectID, r);
-    }
+    let next = 0;
+    const worker = async () => {
+      while (next < chunks.length) {
+        const chunk = chunks[next++];
+        const xpr = [];
+        chunk.forEach((v, j) => {
+          if (j) xpr.push('or');
+          xpr.push({ ref: ['ID'] }, '=', { val: v });
+        });
+        const rows = await rfq.run(SELECT.from(RFQRootCollection).columns(...cols).where(xpr));
+        for (const r of rows) out.set(r.ObjectID, r);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(concurrency, chunks.length) }, worker));
     return [...out.values()];
   }
 
