@@ -1,16 +1,20 @@
 sap.ui.define([
   "sap/m/MessageToast",
-  "sap/m/MessageBox"
-], function (MessageToast, MessageBox) {
+  "sap/m/MessageBox",
+  "sap/m/Dialog",
+  "sap/m/Button",
+  "sap/m/Link",
+  "sap/m/Text",
+  "sap/m/VBox"
+], function (MessageToast, MessageBox, Dialog, Button, Link, Text, VBox) {
   "use strict";
 
-  // One ZIP per this many RFQs. Small enough that each request finishes well
-  // under the gateway timeout and each ZIP stays a sensible size.
+  // One ZIP per this many RFQs — small enough that each link's download
+  // finishes well under the gateway timeout.
   var BATCH_SIZE = 100;
 
   // Pull the array of selected table contexts out of whatever the Fiori
-  // elements runtime hands the custom-action handler (array / {contexts} /
-  // single context / a UI5 Event with getSelectedContexts()).
+  // elements runtime hands the custom-action handler.
   function resolveContexts(args) {
     for (var i = 0; i < args.length; i++) {
       var a = args[i];
@@ -34,52 +38,16 @@ sap.ui.define([
     return ctx.getProperty("ObjectID") || ctx.getProperty("ID");
   }
 
-  function triggerDownload(url, filename) {
-    // Fetch the ZIP, then save it, so we can await completion and run the
-    // next batch only once this one has finished (keeps one request in flight).
-    return fetch(url, { credentials: "same-origin" }).then(function (resp) {
-      if (!resp.ok) throw new Error("HTTP " + resp.status);
-      return resp.blob();
-    }).then(function (blob) {
-      var objUrl = URL.createObjectURL(blob);
-      var a = document.createElement("a");
-      a.href = objUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(objUrl);
-    });
-  }
-
-  function downloadBatchesSequentially(aIDs) {
-    var batches = [];
-    for (var i = 0; i < aIDs.length; i += BATCH_SIZE) {
-      batches.push(aIDs.slice(i, i + BATCH_SIZE));
-    }
-
-    var run = function (idx) {
-      if (idx >= batches.length) {
-        MessageBox.success("All " + batches.length + " batches downloaded (" + aIDs.length + " RFQs).");
-        return;
-      }
-      MessageToast.show("Downloading batch " + (idx + 1) + " of " + batches.length + "…", { duration: 4000 });
-      var sUrl = "/migration/download/rfqs?ids=" + encodeURIComponent(batches[idx].join(","));
-      triggerDownload(sUrl, "rfq_batch_" + (idx + 1) + "_of_" + batches.length + ".zip")
-        .then(function () { run(idx + 1); })
-        .catch(function (e) {
-          MessageBox.error("Batch " + (idx + 1) + " failed: " + e.message +
-            "\nAlready-downloaded batches are saved. Re-select the remaining RFQs and try again.");
-        });
-    };
-    run(0);
+  function batchUrl(ids) {
+    return "/migration/download/rfqs?ids=" + encodeURIComponent(ids.join(","));
   }
 
   return {
     /**
      * Download the attachments of every selected RFQ, one folder per RFQ.
-     * Up to BATCH_SIZE RFQs: a single ZIP. More: one ZIP per batch, downloaded
-     * sequentially so large selections (thousands) don't time out.
+     * Up to BATCH_SIZE RFQs: a single ZIP. More: a dialog with one download
+     * link per batch of BATCH_SIZE, which the user clicks (a real user gesture,
+     * so the browser never blocks the download) one or two at a time.
      */
     onDownloadSelected: function () {
       var aContexts = resolveContexts(arguments);
@@ -92,25 +60,49 @@ sap.ui.define([
 
       if (aIDs.length <= BATCH_SIZE) {
         MessageToast.show("Preparing ZIP for " + aIDs.length + " RFQ(s)…");
-        window.open("/migration/download/rfqs?ids=" + encodeURIComponent(aIDs.join(",")), "_blank");
+        window.open(batchUrl(aIDs), "_blank");
         return;
       }
 
-      var nBatches = Math.ceil(aIDs.length / BATCH_SIZE);
-      MessageBox.confirm(
-        "You selected " + aIDs.length + " RFQs. They will be downloaded as " + nBatches +
-        " ZIP files (up to " + BATCH_SIZE + " RFQs each), one after another.\n\n" +
-        "Keep this tab open until all " + nBatches + " downloads finish. Your browser may ask " +
-        "once to allow multiple downloads — choose Allow.\n\nStart the download?",
-        {
-          title: "Batched download",
-          onClose: function (sAction) {
-            if (sAction === MessageBox.Action.OK) {
-              downloadBatchesSequentially(aIDs);
-            }
-          }
-        }
-      );
+      // Build one link per batch.
+      var aBatches = [];
+      for (var i = 0; i < aIDs.length; i += BATCH_SIZE) {
+        aBatches.push(aIDs.slice(i, i + BATCH_SIZE));
+      }
+
+      var oBox = new VBox({ renderType: "Bare" });
+      oBox.addItem(new Text({
+        text: aIDs.length + " RFQs selected. Click each link below to download that batch " +
+          "(one ZIP of up to " + BATCH_SIZE + " RFQs, each foldered per RFQ). " +
+          "Download one or two at a time and let each finish before starting more.",
+        wrapping: true
+      }).addStyleClass("sapUiSmallMarginBottom"));
+
+      aBatches.forEach(function (aBatch, idx) {
+        var from = idx * BATCH_SIZE + 1;
+        var to = idx * BATCH_SIZE + aBatch.length;
+        oBox.addItem(new Link({
+          text: "Download batch " + (idx + 1) + " of " + aBatches.length +
+            "  (RFQs " + from + "–" + to + ")",
+          href: batchUrl(aBatch),
+          target: "_blank",
+          wrapping: true
+        }).addStyleClass("sapUiTinyMarginBottom"));
+      });
+
+      var oDialog = new Dialog({
+        title: "Download " + aIDs.length + " RFQs in " + aBatches.length + " batches",
+        contentWidth: "30rem",
+        verticalScrolling: true,
+        content: [oBox],
+        endButton: new Button({
+          text: "Close",
+          press: function () { oDialog.close(); }
+        }),
+        afterClose: function () { oDialog.destroy(); }
+      });
+      oDialog.addStyleClass("sapUiContentPadding");
+      oDialog.open();
     }
   };
 });
