@@ -82,6 +82,7 @@ service MigrationService @(path: '/migration', requires: 'authenticated-user') {
         LastChangeDateTime as changedAt,
         null               as downloadUrl : String(2048),   // link to the per-RFQ zip
         null               as downloadLabel : String(60),   // visible link text (set in handler)
+        null               as hasAttachments : Boolean,     // filter-only: maps to attachmentCount > 0
         RFQAttachments     as attachments : redirected to RFQAttachments
   };
 

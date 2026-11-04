@@ -142,7 +142,7 @@ annotate MigrationService.Attachments with {
 // =====================================================================
 annotate MigrationService.RFQs with @(
   UI: {
-    SelectionFields: [ rfqID, status, supplierName, accountName, rfqType, name ],
+    SelectionFields: [ rfqID, status, hasAttachments, supplierName, accountName, rfqType, name ],
     LineItem: [
       { Value: rfqID,           Label: 'RFQ ID' },
       { Value: name,            Label: 'Name' },
@@ -207,6 +207,7 @@ annotate MigrationService.RFQs with {
   supplierName    @title: 'Supplier';
   owner           @title: 'Owner';
   attachmentCount @title: 'Attachments';
+  hasAttachments  @title: 'Has Attachments';
   createdAt       @title: 'Created On';
   changedAt       @title: 'Last Changed';
 };

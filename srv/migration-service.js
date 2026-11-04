@@ -130,6 +130,29 @@ function orEqualityValues(where, field) {
   return vals.length ? vals : null;
 }
 
+/**
+ * Rewrite the virtual `hasAttachments` filter into a real condition on
+ * `attachmentCount` (which maps to C4C NoOfAttachments), recursively through
+ * xpr groups. `hasAttachments = true` -> attachmentCount > 0; false -> = 0.
+ */
+function rewriteHasAttachments(where) {
+  if (!Array.isArray(where)) return where;
+  const out = [];
+  for (let i = 0; i < where.length; i++) {
+    const t = where[i];
+    if (t && t.xpr) { out.push({ ...t, xpr: rewriteHasAttachments(t.xpr) }); continue; }
+    if (t && t.ref && t.ref[t.ref.length - 1] === 'hasAttachments') {
+      const val = where[i + 2];
+      const truthy = val && ('val' in val) ? !!val.val : true;
+      out.push({ ref: ['attachmentCount'] }, truthy ? '>' : '=', { val: 0 });
+      i += 2;
+      continue;
+    }
+    out.push(t);
+  }
+  return out;
+}
+
 /** Map a raw C4C RFQ-attachment row onto the MigrationService.RFQAttachments element names. */
 function toRFQAttachment(r) {
   return {
@@ -317,6 +340,9 @@ module.exports = class MigrationService extends cds.ApplicationService {
     this.on('READ', 'RFQs', async (req) => {
       const RFQ = await cds.connect.to('C4C_RFQ');
       if (req.query?.SELECT?.search) delete req.query.SELECT.search;
+      if (req.query?.SELECT?.where) {
+        req.query.SELECT.where = rewriteHasAttachments(req.query.SELECT.where);
+      }
 
       // A very large multi-value RFQ-ID filter (e.g. a pasted list / select-all)
       // makes C4C's custom service return 500, so fetch the matching RFQs in
