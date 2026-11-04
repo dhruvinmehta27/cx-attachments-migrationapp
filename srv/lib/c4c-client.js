@@ -296,6 +296,33 @@ class C4CClient {
     return rows;
   }
 
+  /**
+   * Fetch RFQ headers for a list of human RFQ IDs, in small chunks (OR-ed
+   * equality) so the custom C4C service never gets an over-large $filter.
+   */
+  async listRFQsByIDs(ids, { chunkSize = 20 } = {}) {
+    if (!ids?.length) return [];
+    const rfq = await this.connectRFQ();
+    const { RFQRootCollection } = rfq.entities;
+    const cols = [
+      'ObjectID', 'ID', 'Name', 'RFQStatusText', 'RFQTypeText',
+      'Account', 'AccountName', 'SupplierID', 'SupplierName', 'OwnerName',
+      'NoOfAttachments', 'CreationDateTime', 'LastChangeDateTime'
+    ];
+    const out = new Map();
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize);
+      const xpr = [];
+      chunk.forEach((v, j) => {
+        if (j) xpr.push('or');
+        xpr.push({ ref: ['ID'] }, '=', { val: v });
+      });
+      const rows = await rfq.run(SELECT.from(RFQRootCollection).columns(...cols).where(xpr));
+      for (const r of rows) out.set(r.ObjectID, r);
+    }
+    return [...out.values()];
+  }
+
   /** Read the metadata + binary of one RFQ attachment (via the parent RFQ). */
   async getRFQAttachment(rfqObjectID, attachmentObjectID, { includeBinary } = {}) {
     const [row] = await this.listRFQAttachments(rfqObjectID, {
