@@ -19,7 +19,7 @@ modules:
     path: gen/srv
     parameters:
       buildpack: nodejs_buildpack
-      memory: 512M
+      memory: 1024M
     build-parameters:
       builder: npm
     provides:

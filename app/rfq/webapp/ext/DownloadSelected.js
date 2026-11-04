@@ -42,6 +42,17 @@ sap.ui.define([
     return "/migration/download/rfqs?ids=" + encodeURIComponent(ids.join(","));
   }
 
+  // Trigger a download in-place (no new tab), within the click gesture, so the
+  // browser never blocks it as a popup and the page is not navigated away.
+  function clickDownload(url) {
+    var a = document.createElement("a");
+    a.href = url;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
   return {
     /**
      * Download the attachments of every selected RFQ, one folder per RFQ.
@@ -60,7 +71,7 @@ sap.ui.define([
 
       if (aIDs.length <= BATCH_SIZE) {
         MessageToast.show("Preparing ZIP for " + aIDs.length + " RFQ(s)…");
-        window.open(batchUrl(aIDs), "_blank");
+        clickDownload(batchUrl(aIDs));
         return;
       }
 
@@ -81,12 +92,12 @@ sap.ui.define([
       aBatches.forEach(function (aBatch, idx) {
         var from = idx * BATCH_SIZE + 1;
         var to = idx * BATCH_SIZE + aBatch.length;
+        var sUrl = batchUrl(aBatch);
         oBox.addItem(new Link({
           text: "Download batch " + (idx + 1) + " of " + aBatches.length +
             "  (RFQs " + from + "–" + to + ")",
-          href: batchUrl(aBatch),
-          target: "_blank",
-          wrapping: true
+          wrapping: true,
+          press: function () { clickDownload(sUrl); }
         }).addStyleClass("sapUiTinyMarginBottom"));
       });
 

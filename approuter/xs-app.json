@@ -1,7 +1,7 @@
 {
   "welcomeFile": "/migration-ui/index.html",
   "authenticationMethod": "route",
-  "sessionTimeout": 30,
+  "sessionTimeout": 120,
   "routes": [
     {
       "source": "^/migration/(.*)$",
