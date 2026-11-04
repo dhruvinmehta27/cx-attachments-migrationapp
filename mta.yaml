@@ -31,6 +31,10 @@ modules:
       # needs to persist returns a clear error. Remove this (and restore the
       # db bindings below) once HANA is available.
       PERSISTENCE_DISABLED: "true"
+      # PUBLIC/no-auth mode: app is open to anyone with the URL. Destructive
+      # actions (C4C deletes, migrations) are refused server-side. Remove this
+      # (and restore xsuaa auth) when re-securing with IAS.
+      PUBLIC_NO_AUTH: "true"
     requires:
       - name: cx-attachments-migrationapp-auth
       - name: cx-attachments-migrationapp-destination

@@ -1,38 +1,38 @@
 {
   "welcomeFile": "/migration-ui/index.html",
-  "authenticationMethod": "route",
+  "authenticationMethod": "none",
   "sessionTimeout": 120,
   "routes": [
     {
       "source": "^/migration/(.*)$",
       "destination": "srv-api",
-      "authenticationType": "xsuaa",
+      "authenticationType": "none",
       "csrfProtection": true
     },
     {
       "source": "^/migration-ui/(.*)$",
       "localDir": "resources",
-      "authenticationType": "xsuaa"
+      "authenticationType": "none"
     },
     {
       "source": "^/jobs-ui/(.*)$",
       "localDir": "resources",
-      "authenticationType": "xsuaa"
+      "authenticationType": "none"
     },
     {
       "source": "^/queries-ui/(.*)$",
       "localDir": "resources",
-      "authenticationType": "xsuaa"
+      "authenticationType": "none"
     },
     {
       "source": "^/rfq-ui/(.*)$",
       "localDir": "resources",
-      "authenticationType": "xsuaa"
+      "authenticationType": "none"
     },
     {
       "source": "^(.*)$",
       "localDir": "resources",
-      "authenticationType": "xsuaa"
+      "authenticationType": "none"
     }
   ]
 }

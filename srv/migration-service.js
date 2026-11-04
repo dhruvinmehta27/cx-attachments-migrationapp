@@ -18,6 +18,11 @@ const DB_QUERIES = 'cx.migration.SavedQueries';
 // stored (saving queries, recording migration jobs) is refused with a clear
 // message instead of silently writing to throwaway in-memory storage.
 const PERSISTENCE_DISABLED = process.env.PERSISTENCE_DISABLED === 'true';
+
+// Public (no-authentication) mode: the app is reachable by anyone with the URL,
+// so every data-changing operation — above all the C4C deletes — is refused.
+// Browsing and downloads stay available. Unset this when auth is restored.
+const PUBLIC_NO_AUTH = process.env.PUBLIC_NO_AUTH === 'true';
 const NO_DB_MSG =
   'No database is provisioned yet, so this cannot be saved. Browsing accounts, ' +
   'downloading attachments and deleting them in C4C all work; saving queries and ' +
@@ -221,6 +226,17 @@ module.exports = class MigrationService extends cds.ApplicationService {
       if (SavedQueries.drafts) this.before('*', SavedQueries.drafts, refuseWrites);
       this.before('migrateAttachments', 'Accounts', refuse);
       this.before('migrate', 'Attachments', refuse);
+    }
+
+    // Public mode: refuse every data-changing operation (especially C4C deletes
+    // and migrations) so an anonymous visitor can only browse and download.
+    if (PUBLIC_NO_AUTH) {
+      const refusePublic = (req) => req.reject(403, 'This action is disabled while the app is public (read-only).');
+      this.before('deleteAttachment', 'Attachments', refusePublic);
+      this.before('deleteAllAttachments', 'Accounts', refusePublic);
+      this.before('migrate', 'Attachments', refusePublic);
+      this.before('migrateAttachments', 'Accounts', refusePublic);
+      this.before('runMigration', 'SavedQueries', refusePublic);
     }
 
     // Populate the per-account / per-query download links (URL + visible text).

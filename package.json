@@ -25,7 +25,7 @@
       "auth": {
         "[development]": { "kind": "dummy" },
         "[hybrid]": { "kind": "dummy" },
-        "[production]": { "kind": "xsuaa" }
+        "[production]": { "kind": "dummy" }
       },
       "db": {
         "[development]": { "kind": "sqlite", "credentials": { "url": ":memory:" } },
