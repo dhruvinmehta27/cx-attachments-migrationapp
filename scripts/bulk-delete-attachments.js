@@ -50,6 +50,9 @@
  *   --limit <n>            only process the first N (for a cautious first pass)
  *   --done <path>          resumable log of deleted ObjectIDs (default bulk-delete.done)
  *   --errors <path>        failure log (default bulk-delete.errors.log)
+ *   --results <path>       per-attachment audit CSV: AttachmentObjectID, AccountObjectID,
+ *                          Status (deleted|already-gone|failed), Detail, TimestampUTC
+ *                          (default bulk-delete.results.csv; appended across batch runs)
  */
 
 const fs = require('fs');
@@ -69,6 +72,7 @@ function parseArgs(argv) {
     else if (k === '--limit') a.limit = parseInt(next(), 10) || undefined;
     else if (k === '--done') a.done = next();
     else if (k === '--errors') a.errors = next();
+    else if (k === '--results') a.results = next();
     else if (k === '--help' || k === '-h') a.help = true;
     else throw new Error(`Unknown option: ${k}`);
   }
@@ -241,7 +245,7 @@ const isNotFound = (e) => {
 async function main() {
   const args = parseArgs(process.argv);
   if (args.help || !args.file) {
-    console.log('Usage: node scripts/bulk-delete-attachments.js --file <list.csv> [--execute] [--id-column NAME] [--account-column NAME] [--concurrency N] [--limit N]');
+    console.log('Usage: node scripts/bulk-delete-attachments.js --file <list.csv> [--execute] [--id-column NAME] [--account-column NAME] [--concurrency N] [--limit N] [--results PATH]');
     process.exit(args.help ? 0 : 1);
   }
   const filePath = path.resolve(args.file);
@@ -318,6 +322,19 @@ async function main() {
   const doneStream = fs.createWriteStream(donePath, { flags: 'a' });
   const errStream = fs.createWriteStream(errPath, { flags: 'a' });
 
+  // Per-attachment audit CSV: one row per processed attachment with its outcome.
+  // Appended as we go (crash-safe) and accumulated across batch runs.
+  const resultsPath = path.resolve(args.results || 'bulk-delete.results.csv');
+  const resultsIsNew = !fs.existsSync(resultsPath);
+  const resultsStream = fs.createWriteStream(resultsPath, { flags: 'a' });
+  const csvCell = (v) => {
+    const s = String(v ?? '');
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  if (resultsIsNew) resultsStream.write('AttachmentObjectID,AccountObjectID,Status,Detail,TimestampUTC\n');
+  const logResult = (rec, status, detail) =>
+    resultsStream.write([rec.id, rec.accountId || '', status, detail || '', new Date().toISOString()].map(csvCell).join(',') + '\n');
+
   const remaining = records.filter(r => !alreadyDone.has(r.id));
   const todo = args.limit ? remaining.slice(0, args.limit) : remaining;
   console.log(`Total ${records.length}  |  already done ${alreadyDone.size}  |  remaining ${remaining.length}`);
@@ -327,16 +344,17 @@ async function main() {
   let deleted = 0, gone = 0, failed = 0;
   const started = Date.now();
 
+  const MAX_ATTEMPTS = 6; // backoff 0.5,1,2,4,8s — rides out transient TSS.INTEGRATION locks
   await pool(todo, args.concurrency, async (rec) => {
-    for (let attempt = 1; attempt <= 4; attempt++) {
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
         await c4c.deleteAttachment(rec.id, rec.accountId);
-        deleted++; doneStream.write(rec.id + '\n');
+        deleted++; doneStream.write(rec.id + '\n'); logResult(rec, 'deleted', '');
         return;
       } catch (e) {
-        if (isNotFound(e)) { gone++; doneStream.write(rec.id + '\n'); return; }
-        if (attempt === 4) { failed++; errStream.write(`${rec.id}\t${rec.accountId || ''}\t${e.message}\n`); return; }
-        await sleep(500 * 2 ** (attempt - 1)); // 0.5s,1s,2s backoff
+        if (isNotFound(e)) { gone++; doneStream.write(rec.id + '\n'); logResult(rec, 'already-gone', e.message); return; }
+        if (attempt === MAX_ATTEMPTS) { failed++; errStream.write(`${rec.id}\t${rec.accountId || ''}\t${e.message}\n`); logResult(rec, 'failed', e.message); return; }
+        await sleep(500 * 2 ** (attempt - 1)); // 0.5s,1s,2s,4s,8s backoff
       }
     }
   }, (d, total) => {
@@ -345,11 +363,12 @@ async function main() {
     console.log(`  ${d}/${total}  (deleted ${deleted}, already-gone ${gone}, failed ${failed})  ~${rate.toFixed(1)}/s  ETA ${eta}s`);
   });
 
-  doneStream.end(); errStream.end();
+  doneStream.end(); errStream.end(); resultsStream.end();
   console.log('\n──────────────────────────────────────────────');
   console.log(`DONE. deleted ${deleted}, already-gone ${gone}, failed ${failed}.`);
   if (failed) console.log(`Failures logged to: ${errPath}  (re-run the same command to retry only the failures)`);
   console.log(`Deleted IDs logged to: ${donePath}`);
+  console.log(`Per-attachment results CSV: ${resultsPath}`);
 }
 
 if (require.main === module) {
