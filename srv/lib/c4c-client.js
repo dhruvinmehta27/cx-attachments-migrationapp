@@ -203,8 +203,31 @@ class C4CClient {
    * done automatically by the odata-v2 client because `csrf: true` is set on
    * the C4C_ODATA destination.
    */
-  async deleteAttachment(attachmentObjectID) {
+  async deleteAttachment(attachmentObjectID, accountObjectID) {
     const c4c = await this.connect();
+
+    // Preferred path: delete through the parent-account navigation — the same
+    // route reads use. The attachment collection is not addressable at the
+    // service root for most operations ("not supported by the processor"), so
+    // when we know the owning account we go through it. CSRF (fetch token +
+    // retry) is handled by the odata-v2 client because the destination sets
+    // `csrf: true`.
+    if (accountObjectID) {
+      const path =
+        `/CorporateAccountCollection('${encodeURIComponent(accountObjectID)}')` +
+        `/CorporateAccountAttachmentFolder('${encodeURIComponent(attachmentObjectID)}')`;
+      try {
+        await c4c.send({ method: 'DELETE', path });
+        return true;
+      } catch (e) {
+        // A 404 means it's already gone — let the caller treat it as such.
+        const s = String(e?.code || e?.statusCode || e?.status || e?.response?.status || '');
+        if (s === '404' || /not\s*found/i.test(e?.message || '')) throw e;
+        // Otherwise fall through and try the key-addressed form once.
+      }
+    }
+
+    // Fallback (or when no account is known): address the attachment by key.
     const { CorporateAccountAttachmentFolderCollection } = c4c.entities;
     await c4c.run(DELETE.from(CorporateAccountAttachmentFolderCollection).where({ ObjectID: attachmentObjectID }));
     return true;
@@ -221,7 +244,7 @@ class C4CClient {
     const errors = [];
     for (const r of rows) {
       try {
-        await this.deleteAttachment(r.ObjectID);
+        await this.deleteAttachment(r.ObjectID, r.ParentObjectID || accountObjectID);
         deleted++;
       } catch (e) {
         errors.push(`${r.Name || r.ObjectID}: ${e.message}`);
