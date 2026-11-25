@@ -242,10 +242,11 @@ async function main() {
   const resolved = resolveObjectIDs(rows, args.idColumn, args.accountColumn);
   const { header, strategy, samples, dataCount, withAccount } = resolved;
 
-  // de-duplicate by attachment id, preserve order and the first account mapping
+  // de-duplicate by attachment id, preserve order and the first account mapping.
+  // NOTE: --limit is NOT applied here — for --execute it means "delete the next
+  // N not-yet-done" (a batch), applied after the resumable done-log below.
   const seen = new Set();
-  let records = resolved.records.filter(r => (seen.has(r.id) ? false : seen.add(r.id)));
-  if (args.limit) records = records.slice(0, args.limit);
+  const records = resolved.records.filter(r => (seen.has(r.id) ? false : seen.add(r.id)));
   const ids = records.map(r => r.id);
 
   console.log('──────────────────────────────────────────────');
@@ -253,7 +254,8 @@ async function main() {
   console.log(`Columns          : ${header.join(', ') || '(headerless)'}`);
   console.log(`Data rows        : ${dataCount}`);
   console.log(`ID strategy      : ${strategy}`);
-  console.log(`Unique ObjectIDs : ${ids.length}${args.limit ? ` (limited to ${args.limit})` : ''}`);
+  console.log(`Unique ObjectIDs : ${ids.length}`);
+  if (args.limit) console.log(`Batch size       : ${args.limit}  (each --execute run deletes the next ${args.limit} not-yet-done)`);
   console.log(`With account id  : ${withAccount} of ${dataCount}  (${withAccount ? 'navigation delete' : 'KEY delete only — no account column found'})`);
   console.log('Sample mapping   :');
   for (const s of samples) console.log(`   [${s.how}] att=${s.id}  acct=${s.accountId || '—'}   <=   ${s.raw}`);
@@ -291,7 +293,10 @@ async function main() {
       } catch (e) { errored++; console.log(`   ! ${rec.id}  (${e.message})`); }
     }
     console.log(`Sample check: ${found} found, ${missing} missing, ${errored} errored, ${skipped} skipped.`);
-    console.log(`\nIf that looks right, re-run with --execute (optionally --limit 1 first) to delete.`);
+    console.log(`\nIf that looks right, delete in batches — re-run the SAME command for each batch`);
+    console.log(`(the done-log advances automatically):`);
+    console.log(`   … --execute --limit 1                   (delete one first, as a test)`);
+    console.log(`   … --execute --limit 5000 --concurrency 8 (then the next 5000 each run)`);
     return;
   }
 
@@ -304,9 +309,11 @@ async function main() {
   const doneStream = fs.createWriteStream(donePath, { flags: 'a' });
   const errStream = fs.createWriteStream(errPath, { flags: 'a' });
 
-  const todo = records.filter(r => !alreadyDone.has(r.id));
-  console.log(`Deleting ${todo.length} attachments (${alreadyDone.size} already done, skipped). Concurrency: ${args.concurrency}`);
-  console.log('Press Ctrl+C to stop — progress is saved and re-running resumes.\n');
+  const remaining = records.filter(r => !alreadyDone.has(r.id));
+  const todo = args.limit ? remaining.slice(0, args.limit) : remaining;
+  console.log(`Total ${records.length}  |  already done ${alreadyDone.size}  |  remaining ${remaining.length}`);
+  console.log(`This run will delete ${todo.length}${args.limit ? ` (batch size ${args.limit})` : ''}. Concurrency: ${args.concurrency}`);
+  console.log('Press Ctrl+C to stop — progress is saved; re-run the same command for the next batch.\n');
 
   let deleted = 0, gone = 0, failed = 0;
   const started = Date.now();
