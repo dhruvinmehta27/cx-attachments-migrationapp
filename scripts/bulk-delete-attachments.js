@@ -15,12 +15,17 @@
  *     a resumable done-log (re-running skips already-deleted IDs), and an
  *     error log. 404 / "not found" is treated as already-gone.
  *
- * Why the account column matters: the C4C attachment collection is NOT
- * addressable at the service root ("not supported by the processor"). Reads —
- * and, reliably, deletes — must go through the parent account:
- *   DELETE /CorporateAccountCollection('<account>')/CorporateAccountAttachmentFolder('<attachment>')
- * So a file with BOTH the attachment ObjectID and the account ObjectID
- * (e.g. columns AttachmentObjectID, AccountUUID) is strongly preferred.
+ * How C4C handles these operations — they are ASYMMETRIC:
+ *   - READ  attachments: only by navigating from the parent account
+ *       GET /CorporateAccountCollection('<acct>')/CorporateAccountAttachmentFolder
+ *     (the attachment collection can't be queried at the service root).
+ *   - DELETE an attachment: only by its own key
+ *       DELETE /CorporateAccountAttachmentFolderCollection('<attachment>')
+ *     (DELETE via the account navigation path is rejected:
+ *      "ResourcePath with NavigationPath is not supported for this Request Type").
+ * So the account ObjectID is used only to VERIFY existence in the dry run; the
+ * actual delete needs just the attachment ObjectID. A file with both columns
+ * (e.g. AttachmentObjectID, AccountUUID) lets the dry run confirm the mapping.
  *
  * Run it with the app's cloud bindings resolved (same auth as `cds watch
  * --profile hybrid`), e.g. from the project root:
@@ -224,9 +229,13 @@ async function pool(items, size, worker, onProgress) {
 }
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+// "Already gone" covers a plain 404 and C4C's own way of saying the attachment
+// no longer exists: a 500 whose message is
+//   "Business object node AttachmentFolder.DOCUMENT(<id>) does not exist".
 const isNotFound = (e) => {
   const s = e?.code || e?.statusCode || e?.status || e?.response?.status;
-  return String(s) === '404' || /not\s*found/i.test(e?.message || '');
+  const msg = `${e?.message || ''} ${e?.reason?.message || ''}`;
+  return String(s) === '404' || /not\s*found|does ?not ?exists?|no longer exists?/i.test(msg);
 };
 
 async function main() {
@@ -256,16 +265,16 @@ async function main() {
   console.log(`ID strategy      : ${strategy}`);
   console.log(`Unique ObjectIDs : ${ids.length}`);
   if (args.limit) console.log(`Batch size       : ${args.limit}  (each --execute run deletes the next ${args.limit} not-yet-done)`);
-  console.log(`With account id  : ${withAccount} of ${dataCount}  (${withAccount ? 'navigation delete' : 'KEY delete only — no account column found'})`);
+  console.log(`With account id  : ${withAccount} of ${dataCount}  (used only to verify existence; delete is by attachment key)`);
   console.log('Sample mapping   :');
   for (const s of samples) console.log(`   [${s.how}] att=${s.id}  acct=${s.accountId || '—'}   <=   ${s.raw}`);
   console.log('──────────────────────────────────────────────');
 
   if (!ids.length) { console.error('No ObjectIDs resolved from the list — check the file / --id-column.'); process.exit(1); }
   if (!withAccount) {
-    console.log('WARNING: no account ObjectID column detected. Deletes will use the key-addressed form,');
-    console.log('         which C4C may reject ("not supported by the processor"). If so, add/point to the');
-    console.log('         account column with --account-column <header> (values must be 32-hex ObjectIDs).');
+    console.log('NOTE: no account ObjectID column detected — the dry-run existence check will be skipped.');
+    console.log('      Deletion still works (it addresses the attachment by key). Add --account-column');
+    console.log('      <header> (32-hex ObjectIDs) if you want the dry run to verify the mapping.');
   }
 
   // Connect via the app's C4C client (uses C4C_ODATA binding).
